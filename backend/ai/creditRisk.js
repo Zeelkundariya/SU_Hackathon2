@@ -1,20 +1,25 @@
 module.exports.analyzeCreditRisk = ({
   totalInvoices,
-  totalDelayDays
+  totalDelayDays,
+  score = 80
 }) => {
+  const avgDelay = totalInvoices === 0 ? 28 : (totalDelayDays / totalInvoices).toFixed(1);
 
-  const avgDelay =
-    totalInvoices === 0
-      ? 0
-      : (totalDelayDays / totalInvoices).toFixed(1);
+  let risk = "Low";
+  let status = "Excellent";
 
-  let risk = "🟢 Low";
-
-  if (avgDelay > 45) risk = "🔴 High";
-  else if (avgDelay > 30) risk = "🟡 Moderate";
+  if (score < 40) {
+    risk = "High";
+    status = "Critical";
+  } else if (score < 70) {
+    risk = "Moderate";
+    status = "Review Required";
+  }
 
   return {
-    averagePaymentCycle: avgDelay,
-    risk
+    avgCollectionDays: avgDelay,
+    riskScore: risk,
+    status: status,
+    score: score
   };
 };

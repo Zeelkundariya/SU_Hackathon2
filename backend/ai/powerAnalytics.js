@@ -20,6 +20,7 @@ module.exports.calculatePowerAnalytics = ({
     totalEnergyCost,
     costPerMeter,
     solarContribution: `${solarPercentage}%`,
+    solarPercentage: parseFloat(solarPercentage),
     solarSavings: `₹${solarBenefit}`,
     energyAlert: alert,
     optimizationTip: "Shift heavy batch production to 11 AM - 3 PM to maximize Solar Harvesting."

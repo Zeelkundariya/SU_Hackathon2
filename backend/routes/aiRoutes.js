@@ -8,6 +8,7 @@ const ProductionLog = require("../models/ProductionLog");
 const Order = require("../models/Order");
 const Factory = require("../models/Factory");
 const MarketData = require("../models/MarketData");
+const AIRequest = require("../models/AIRequest");
 
 // AI Logic
 const { predictDelay } = require("../ai/delayPrediction");
@@ -41,6 +42,8 @@ const { checkQualityCompliance } = require("../ai/qualityCompliance");
 const { optimizeYarnMix } = require("../ai/yarnOptimization");
 const { calculateWasteMetrics } = require("../ai/wasteRecycling");
 const { calculateExportScore } = require("../ai/exportReadiness");
+const { predictDowntime } = require("../ai/downtimePredictor");
+const { optimizeWorkflow } = require("../ai/workflowOptimizer");
 const { calculateClusterEfficiency } = require("../ai/clusterIntelligence");
 const { projectProfitMargin } = require("../ai/profitProjection");
 const { evaluateBuyerRisk } = require("../ai/creditInsurance");
@@ -74,7 +77,7 @@ router.post("/delay", async (req, res) => {
       bodyDays || dbDaysLeft,
       bodyQty || dbRequiredQty
     );
-    res.json({ result });
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -84,7 +87,7 @@ router.post("/delay", async (req, res) => {
 router.post("/maintenance", async (req, res) => {
   try {
     const { uptimeHours, vibration, temp, breakdowns } = req.body;
-    
+
     const machines = await Machine.find();
     const dbUptime = machines.reduce((acc, m) => acc + (m.uptimeHours || 0), 0);
     const dbBreakdowns = machines.reduce((acc, m) => acc + (m.breakdownCount || 0), 0);
@@ -105,15 +108,15 @@ router.post("/maintenance-score", async (req, res) => {
     const { uptime: bodyUptime, breakdowns: bodyBreakdowns, daysSince: bodyDays } = req.body;
 
     const machines = await Machine.find();
-    const dbUptime = machines.reduce((acc, m) => acc + m.uptimeHours, 0);
-    const dbBreakdowns = machines.reduce((acc, m) => acc + m.breakdownCount, 0);
+    const dbUptime = machines.length > 0 ? machines.reduce((acc, m) => acc + m.uptimeHours, 0) : 500; // Fallback 500 hrs
+    const dbBreakdowns = machines.length > 0 ? machines.reduce((acc, m) => acc + m.breakdownCount, 0) : 1; // Fallback 1 breakdown
 
     const score = calculateMaintenanceScore(
       bodyUptime !== undefined ? bodyUptime : dbUptime,
       bodyBreakdowns !== undefined ? bodyBreakdowns : dbBreakdowns,
       bodyDays || 15
     );
-    res.json({ score });
+    res.json(score);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -146,7 +149,7 @@ router.post("/efficiency", async (req, res) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const logs = await ProductionLog.find({ date: { $gte: today } });
-    const dbActualOutput = logs.reduce((acc, l) => acc + l.output, 0);
+    const dbActualOutput = logs.length > 0 ? logs.reduce((acc, l) => acc + l.output, 0) : 4800; // Fallback to 4800 if empty
     const factory = await Factory.findOne() || { targetOutput: 5000 };
     const dbExpectedOutput = factory.targetOutput;
 
@@ -170,7 +173,7 @@ router.post("/executive-summary", async (req, res) => {
     const logs = await ProductionLog.find({ date: { $gte: today } });
 
     const factory = await Factory.findOne() || { targetOutput: 5000 };
-    const actualOutput = logs.reduce((acc, l) => acc + (l.output || 0), 0);
+    const actualOutput = logs.length > 0 ? logs.reduce((acc, l) => acc + (l.output || 0), 0) : 4800; // Fallback to 4800 if empty
     const targetOutput = factory.targetOutput || 5000;
     const pei = Math.round((actualOutput / targetOutput) * 100) || 0;
 
@@ -185,7 +188,7 @@ router.post("/executive-summary", async (req, res) => {
       delayRisk: pei < 70 ? "High" : "Low",
       inventoryAlerts: alertCount
     });
-    res.json(summary);
+    res.json({ ...summary, pei });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -200,10 +203,19 @@ router.post("/recommendations", async (req, res) => {
       : 0;
     const inventoryLow = inventory.some(i => (i.quantity || 0) < (i.minThreshold || 0));
 
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const logs = await ProductionLog.find({ date: { $gte: today } });
+    const factory = await Factory.findOne() || { targetOutput: 5000 };
+    const actualOutput = logs.length > 0 ? logs.reduce((acc, l) => acc + (l.output || 0), 0) : 4800; // Fallback to 4800
+    const targetOutput = factory.targetOutput || 5000;
+    const pei = Math.round((actualOutput / targetOutput) * 100) || 0;
+
     const actions = getRecommendations({
       healthScore: avgHealth,
       inventoryLow,
-      delayRisk: avgHealth < 70 ? "High" : "Low"
+      delayRisk: avgHealth < 70 ? "High" : "Low",
+      pei: pei
     });
     res.json({ actions: actions });
   } catch (err) {
@@ -220,9 +232,7 @@ router.post("/simulate", async (req, res) => {
 
     const { outputPerShift, shifts, deadlineDays } = req.body;
     // Default to current stats if no overrides provided
-    res.json({
-      result: simulateScenario(outputPerShift || avgOutput, shifts || 3, deadlineDays || 5)
-    });
+    res.json(simulateScenario(outputPerShift || avgOutput, shifts || 3, deadlineDays || 5));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -241,12 +251,10 @@ router.post("/esg", async (req, res) => {
     const dbDowntime = machines.reduce((acc, m) => acc + ((m.breakdownCount || 0) * 2), 0);
     const dbWasteKg = Math.round(output * 0.015);
 
-    res.json({
-      esgScore: calculateESG(
-        bodyDowntime !== undefined ? bodyDowntime : dbDowntime,
-        bodyWaste !== undefined ? bodyWaste : dbWasteKg
-      )
-    });
+    res.json(calculateESG(
+      bodyDowntime !== undefined ? bodyDowntime : dbDowntime,
+      bodyWaste !== undefined ? bodyWaste : dbWasteKg
+    ));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -278,24 +286,26 @@ router.post("/textile-metrics", async (req, res) => {
 });
 router.post("/cost-optimization", async (req, res) => {
   try {
+    const { actualOutputToday: bodyOutput } = req.body;
     const machines = await Machine.find();
     const inventory = await Inventory.find();
     const factory = await Factory.findOne() || { powerCostPerKwh: 8 };
 
     const downtimeHours = machines.reduce((acc, m) => acc + (m.breakdownCount * 2), 0);
-    // Material cost based on inventory value (simulated price per material)
     const totalMaterialCost = inventory.reduce((acc, i) => acc + (i.quantity * (i.material.includes("Cotton") ? 200 : 150)), 0);
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const logs = await ProductionLog.find({ date: { $gte: today } });
-    const actualOutputToday = logs.reduce((acc, l) => acc + (l.output || 0), 0);
+    const dbOutput = logs.length > 0 ? logs.reduce((acc, l) => acc + (l.output || 0), 0) : 4800; // Fallback to 4800
+
+    const actualOutputToday = bodyOutput !== undefined ? bodyOutput : dbOutput;
 
     const result = calculateCostOptimization({
       totalCost: totalMaterialCost + (actualOutputToday * factory.powerCostPerKwh),
       totalUnitsProduced: actualOutputToday || 1000,
       downtimeHours,
-      lossPerHour: 1200, // Derived from avg production value
+      lossPerHour: 1200,
       wastageKg: Math.round(actualOutputToday * 0.02),
       costPerKg: 180
     });
@@ -311,7 +321,7 @@ router.post("/workforce", async (req, res) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const logs = await ProductionLog.find({ date: { $gte: today } });
-    const dbOutput = logs.reduce((acc, l) => acc + (l.output || 0), 0);
+    const dbOutput = logs.length > 0 ? logs.reduce((acc, l) => acc + (l.output || 0), 0) : 4800; // Fallback
 
     const activeMachineIds = [...new Set(logs.map(l => l.machineId))];
     const dbWorkers = Math.max(10, activeMachineIds.length * 2);
@@ -332,7 +342,7 @@ router.post("/power", async (req, res) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const logs = await ProductionLog.find({ date: { $gte: today } });
-    const output = logs.reduce((acc, l) => acc + (l.output || 0), 0);
+    const output = logs.length > 0 ? logs.reduce((acc, l) => acc + (l.output || 0), 0) : 4800; // Fallback
 
     const factory = await Factory.findOne() || { powerCostPerKwh: 8 };
     const dbPowerUsed = output * 0.5;
@@ -349,12 +359,15 @@ router.post("/power", async (req, res) => {
 
 router.post("/reliability", async (req, res) => {
   try {
+    const { uptime: bodyUptime } = req.body;
     const machines = await Machine.find();
-    const totalUptime = machines.reduce((acc, m) => acc + m.uptimeHours, 0);
-    // Rough estimate of total time (uptime + theoretical downtime from breakdowns)
-    const totalTime = totalUptime + (machines.reduce((acc, m) => acc + m.breakdownCount, 0) * 4);
+    const dbUptime = machines.reduce((acc, m) => acc + m.uptimeHours, 0);
+    const uptime = bodyUptime !== undefined ? bodyUptime : dbUptime;
 
-    res.json(calculateReliability({ uptime: totalUptime, totalTime }));
+    // Rough estimate of total time (uptime + theoretical downtime from breakdowns)
+    const totalTime = uptime + (machines.reduce((acc, m) => acc + m.breakdownCount, 0) * 4);
+
+    res.json(calculateReliability({ uptime, totalTime }));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -382,13 +395,11 @@ router.post("/digital-maturity", async (req, res) => {
     const machines = await Machine.find();
     const inventory = await Inventory.find();
     const orders = await Order.find();
-    res.json({
-      score: calculateDigitalMaturity({
-        hasIoT: machines.length > 3, // Advanced if many machines connected
-        hasInventorySystem: inventory.length > 5,
-        hasOrderTracking: orders.length > 0
-      })
-    });
+    res.json(calculateDigitalMaturity({
+      hasIoT: machines.length > 3, // Advanced if many machines connected
+      hasInventorySystem: inventory.length > 5,
+      hasOrderTracking: orders.length > 0
+    }));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -423,9 +434,7 @@ router.post("/anomaly", async (req, res) => {
     const history = Object.values(dailyOutput);
     const todayValue = history.pop() || 0;
 
-    res.json({
-      result: detectAnomaly(history, todayValue)
-    });
+    res.json(detectAnomaly(history, todayValue));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -500,8 +509,14 @@ router.post("/subcontractor", async (req, res) => {
 
 router.post("/gov-schemes", async (req, res) => {
   try {
+    const { investment: bodyInv, turnover: bodyTurn } = req.body;
     const factory = await Factory.findOne() || { investmentCr: 10, turnoverCr: 50 };
-    res.json(checkEligibility({ investment: factory.investmentCr, sector: "Textile", turnover: factory.turnoverCr }));
+
+    res.json(checkEligibility({
+      investmentCr: bodyInv !== undefined ? bodyInv : factory.investmentCr,
+      turnoverCr: bodyTurn !== undefined ? bodyTurn : factory.turnoverCr,
+      msmeRegistered: true
+    }));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -559,13 +574,13 @@ router.post("/textile-flow", async (req, res) => {
 
 router.post("/quality", async (req, res) => {
   try {
-    const { 
-      gsmDeviation, 
-      colorVariance, 
-      shrinkage, 
-      totalUnits, 
-      defects, 
-      certification 
+    const {
+      gsmDeviation,
+      colorVariance,
+      shrinkage,
+      totalUnits,
+      defects,
+      certification
     } = req.body;
 
     const machines = await Machine.find();
@@ -602,12 +617,13 @@ router.post("/yarn-optimize", async (req, res) => {
 
 router.post("/waste", async (req, res) => {
   try {
+    const { actualOutput: bodyOutput } = req.body;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const logs = await ProductionLog.find({ date: { $gte: today } });
-    const output = logs.reduce((acc, l) => acc + (l.output || 0), 0);
+    const dbOutput = logs.length > 0 ? logs.reduce((acc, l) => acc + (l.output || 0), 0) : 4800; // Fallback
+    const output = bodyOutput !== undefined ? bodyOutput : dbOutput;
 
-    // Algorithm: 2.2% waste for Cotton, 1.8% for Synthetic
     const inventory = await Inventory.find();
     const dominantMaterial = inventory.sort((a, b) => b.quantity - a.quantity)[0]?.material || "Cotton";
     const wasteFactor = dominantMaterial.includes("Cotton") ? 0.022 : 0.018;
@@ -646,7 +662,7 @@ router.post("/cluster", async (req, res) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const logs = await ProductionLog.find({ date: { $gte: today } });
-    const actualOutputToday = logs.reduce((acc, l) => acc + (l.output || 0), 0);
+    const actualOutputToday = logs.length > 0 ? logs.reduce((acc, l) => acc + (l.output || 0), 0) : 4800;
 
     const factory = await Factory.findOne() || { targetOutput: 5000 };
 
@@ -667,7 +683,7 @@ router.post("/profit", async (req, res) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const logs = await ProductionLog.find({ date: { $gte: today } });
-    const output = logs.reduce((acc, l) => acc + (l.output || 0), 0);
+    const output = logs.length > 0 ? logs.reduce((acc, l) => acc + (l.output || 0), 0) : 4800;
 
     const factory = await Factory.findOne() || { turnoverCr: 10 };
     const dbCost = output * 190;
@@ -676,7 +692,8 @@ router.post("/profit", async (req, res) => {
 
     res.json(projectProfitMargin({
       cost: bodyCost !== undefined ? bodyCost : dbCost * projectionFactor,
-      price: bodyPrice !== undefined ? bodyPrice : dbPrice * projectionFactor
+      revenue: bodyPrice !== undefined ? bodyPrice : dbPrice * projectionFactor,
+      actualOutputMeters: output
     }));
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -690,7 +707,7 @@ router.post("/buyer-risk", async (req, res) => {
     const delayedOrders = orders.filter(o => o.status !== "Completed" && o.deadline < new Date()).length;
     const score = 80 - (delayedOrders * 10);
 
-    res.json(evaluateBuyerRisk({ score }));
+    res.json(analyzeCreditRisk({ score }));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -698,11 +715,11 @@ router.post("/buyer-risk", async (req, res) => {
 
 router.post("/safety", async (req, res) => {
   try {
-    const { 
-      accidentFreeDays, 
-      ppeComplianceRate, 
-      drills, 
-      hazards 
+    const {
+      accidentFreeDays,
+      ppeComplianceRate,
+      drills,
+      hazards
     } = req.body;
 
     res.json(calculateSafetyScore({
@@ -711,6 +728,56 @@ router.post("/safety", async (req, res) => {
       safetyDrillsConducted: drills !== undefined ? drills : 4,
       unresolvedHazards: hazards !== undefined ? hazards : 0
     }));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- PS-005 Advanced Automation ---
+router.post("/predict-downtime", async (req, res) => {
+  try {
+    const { vibration, temp, uptime } = req.body;
+    res.json(predictDowntime({ vibration, temp, uptimeHours: uptime }));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/optimize-workflow", async (req, res) => {
+  try {
+    const { grey, dyed, finished } = req.body;
+    res.json(optimizeWorkflow({ greyMeters: grey, dyedMeters: dyed, finishedMeters: finished }));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- Owner Approval Flow ---
+router.post("/request", async (req, res) => {
+  try {
+    const { agentName, requestType, details } = req.body;
+    const newRequest = new AIRequest({ agentName, requestType, details });
+    await newRequest.save();
+    res.json(newRequest);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get("/requests", async (req, res) => {
+  try {
+    const requests = await AIRequest.find().sort({ timestamp: -1 });
+    res.json(requests);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put("/request/:id", async (req, res) => {
+  try {
+    const { status } = req.body;
+    const request = await AIRequest.findByIdAndUpdate(req.params.id, { status }, { new: true });
+    res.json(request);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

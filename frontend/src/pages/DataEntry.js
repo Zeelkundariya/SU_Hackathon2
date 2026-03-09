@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
+import ExcelUpload from '../components/ExcelUpload';
 import {
     Save, AlertCircle, TrendingUp, Cpu, Droplets, Trash2,
     Users, Zap, DollarSign, Activity, Settings, Info, Briefcase
@@ -141,6 +142,14 @@ const DataEntry = () => {
                 </header>
 
                 <form onSubmit={handleSubmit} style={{ width: '100%' }}>
+                    {/* Add Bulk Import Section */}
+                    <div style={{ marginBottom: '3rem' }}>
+                        <ExcelUpload onUploadSuccess={() => {
+                            setMsg("Excel data synchronized successfully.");
+                            setTimeout(() => setMsg(null), 3000);
+                        }} />
+                    </div>
+
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '2rem', alignItems: 'stretch' }}>
                         {/* Production Card */}
                         <div id="production" className="glass-card">

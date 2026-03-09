@@ -1,19 +1,30 @@
 module.exports.checkEligibility = ({
-  msmeRegistered,
-  annualTurnover,
-  energyConsumption
+  msmeRegistered = true,
+  turnoverCr = 0,
+  investmentCr = 0
 }) => {
-
   const schemes = [];
 
-  if (msmeRegistered)
-    schemes.push("✔ Rajasthan Textile Subsidy Scheme");
+  // Rajasthan-Specific & Textile Focus
+  if (msmeRegistered) {
+    schemes.push("✔ Rajasthan Investment Promotion Scheme (RIPS-2024)");
+    schemes.push("✔ TUFS (Amended Technology Upgradation Fund Scheme)");
+  }
 
-  if (energyConsumption > 100000)
-    schemes.push("✔ MSME Energy Rebate");
+  if (investmentCr > 2 && investmentCr < 50) {
+    schemes.push("✔ MSME Technology Centre Support (SITP)");
+  }
 
-  if (annualTurnover < 5)
-    schemes.push("✔ Small Enterprise Growth Support");
+  if (turnoverCr < 100) {
+    schemes.push("✔ ZED Certification Financial Support");
+  }
 
-  return { eligibleSchemes: schemes };
+  // Rajasthan State Specific
+  schemes.push("✔ Rajasthan MSME Policy: Power Tariff Rebate");
+
+  return {
+    eligibleSchemes: schemes,
+    pmegpEligible: investmentCr < 0.5,
+    tufsStatus: "Eligible for 15% Subsidy"
+  };
 };

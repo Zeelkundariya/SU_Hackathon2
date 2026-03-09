@@ -1,12 +1,12 @@
 module.exports.calculateSkillIndex = ({
-  skilledWorkers,
-  totalWorkers
+  trainingHours = 20
 }) => {
+  // Bhilwara-specific labor skill logic
+  // Higher training hours = higher skill index
+  const baseSkill = 65;
+  const trainingBonus = Math.min(35, trainingHours * 0.8);
 
-  const skillScore =
-    totalWorkers === 0
-      ? 0
-      : Math.round((skilledWorkers / totalWorkers) * 100);
-
-  return { skillScore };
+  return {
+    overallScore: Math.round(baseSkill + trainingBonus)
+  };
 };
