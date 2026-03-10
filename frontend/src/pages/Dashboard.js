@@ -70,6 +70,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
   // WhatsApp Chat Sequence State (0: Initial, 1: Owner Typing, 2: Owner Replied, 3: AI Processing, 4: Done)
   const [waStep, setWaStep] = useState(0);
   const [ownerReply, setOwnerReply] = useState('');
+  const [whatsappSuggestions, setWhatsappSuggestions] = useState([]);
   const [selectedSupplier, setSelectedSupplier] = useState('');
   const [twilioPhone, setTwilioPhone] = useState('');
   const [twilioSent, setTwilioSent] = useState(false);
