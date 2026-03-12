@@ -1,5 +1,5 @@
 import api from "../api";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef, memo } from "react";
 import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area,
   BarChart, Bar, Cell, Legend, PieChart, Pie
@@ -13,11 +13,117 @@ import {
   Box, Network, Mic, Droplet, RefreshCcw, Fingerprint, MessageSquare, ArrowRight, Landmark, BookOpen, FileScan, Sparkles, Recycle, Flame
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { agentsData } from "../data/agentsData"; export default function Dashboard() {
+import { agentsData } from "../data/agentsData";
+
+// --- High-Fidelity Styles ---
+const industrialStyles = `
+  @keyframes scan-vertical {
+    0% { top: 0%; opacity: 0; }
+    50% { opacity: 1; }
+    100% { top: 100%; opacity: 0; }
+  }
+  @keyframes progress-infinite {
+    0% { left: -100%; }
+    100% { left: 100%; }
+  }
+  @keyframes pulse-slow {
+    0%, 100% { transform: scale(1); opacity: 0.8; }
+    50% { transform: scale(1.05); opacity: 1; }
+  }
+  .scan-line { animation: progress-infinite 1.5s linear infinite; }
+  .pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
+  .micro-grid { background-image: radial-gradient(circle, var(--accent) 0.5px, transparent 0.5px); background-size: 15px 15px; }
+  
+  @keyframes thermal-pulse {
+    0%, 100% { background: rgba(244, 63, 94, 0.1); }
+    50% { background: rgba(244, 63, 94, 0.3); }
+  }
+  @keyframes spectral-wave {
+    0% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+    100% { transform: translateY(0); }
+  }
+  @keyframes voice-pulse {
+    0% { transform: scaleY(1); }
+    50% { transform: scaleY(3); }
+    100% { transform: scaleY(1); }
+  }
+  .thermal-active { animation: thermal-pulse 1s infinite; }
+  .spectral-bar { animation: spectral-wave 0.5s infinite ease-in-out; }
+  .voice-bar { animation: voice-pulse 0.8s infinite ease-in-out; }
+`;
+
+const AgentGrid = React.memo(({ categories, title, focusedAgent, setFocusedAgent }) => {
+  return (
+    <div className="industrial-panel" style={{ padding: '2rem', marginTop: '3rem', borderTop: '2px solid var(--primary-20)', borderRadius: '1rem' }}>
+      <h3 className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--primary)', letterSpacing: '2px', textTransform: 'uppercase' }}>
+        <Network size={22} /> {title} (From 52 Agent Library)
+      </h3>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px', marginTop: '1.5rem' }}>
+        {agentsData.filter(a => categories.includes(a.category)).map(agent => (
+          <div key={agent.id} style={{
+            background: focusedAgent?.id === agent.id ? 'rgba(99, 102, 241, 0.1)' : 'rgba(255,255,255,0.02)',
+            border: focusedAgent?.id === agent.id ? '2px solid var(--primary)' : '1px solid rgba(255,255,255,0.05)',
+            borderRadius: '12px',
+            padding: '16px',
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            cursor: 'pointer',
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+            onClick={() => setFocusedAgent(focusedAgent?.id === agent.id ? null : agent)}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+              <span style={{ fontSize: '0.65rem', background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{agent.category}</span>
+              {agent.status === 'Active' ? <span style={{ color: 'var(--accent)', fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '4px' }}><div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent)', animation: 'pulse 1.5s infinite' }}></div> Active</span> : <span style={{ color: 'var(--warning)', fontSize: '0.7rem' }}>Learning Mode</span>}
+            </div>
+            <div style={{ fontWeight: '700', fontSize: '0.9rem', marginBottom: '8px', lineHeight: 1.3 }}>{agent.id}. {agent.name}</div>
+
+            {agent.risk !== 'Low' && agent.risk !== 'N/A' && (
+              <div style={{ fontSize: '0.75rem', color: agent.risk.includes('Critical') ? 'var(--danger)' : 'var(--warning)' }}>
+                Alert Policy: <strong>{agent.risk}</strong>
+              </div>
+            )}
+
+            {focusedAgent?.id === agent.id && (
+              <div className="animate-fade-in" style={{ marginTop: '12px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '12px' }}>
+                <div style={{ fontSize: '0.65rem', color: 'var(--primary)', fontWeight: 'bold', marginBottom: '6px', letterSpacing: '1px' }}>AGENT TELEMETRY STREAM</div>
+                <div style={{ height: '40px', display: 'flex', alignItems: 'flex-end', gap: '2px', background: 'rgba(0,0,0,0.2)', padding: '4px', borderRadius: '4px' }}>
+                  {[...Array(15)].map((_, i) => (
+                    <div key={i} style={{ flex: 1, background: 'var(--primary)', height: `${20 + (Math.sin(i + Date.now() / 1000) * 40 + 50)}%`, opacity: 0.3 + (i / 15 * 0.5) }}></div>
+                  ))}
+                </div>
+                <div style={{ marginTop: '10px', fontSize: '0.7rem', color: '#94a3b8', fontStyle: 'italic', lineHeight: '1.4' }}>
+                  {
+                    agent.category === 'Core Systems' ? ({
+                      1: "Master control node balancing 52 sub-agents to prevent system lag.",
+                      2: "Central nervous system syncing telemetry between edge looms and cloud.",
+                      3: "Calculates global permutations for optimum production schedule.",
+                      4: "Global market sync. Adjusts local outputs to real-time demands.",
+                      5: "Zero-latency processor for critical machine safety shutdowns.",
+                      6: "Translates Hindi/Mewari voice commands into machine code.",
+                      7: "Automatically resolves resource conflicts between AI sub-agents."
+                    }[agent.id] || "Analyzing core system throughput...") : "Agent actively monitoring cluster performance and optimizing local edge compute."
+                  }
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}, (prevProps, nextProps) => {
+  return prevProps.title === nextProps.title && 
+         prevProps.focusedAgent?.id === nextProps.focusedAgent?.id &&
+         JSON.stringify(prevProps.categories) === JSON.stringify(nextProps.categories);
+});
+
+export default function Dashboard() {
   const navigate = useNavigate();
   // --- AI States ---
-  // Overview & Ops
   const [delay, setDelay] = useState("");
+  const [agentMessage, setAgentMessage] = useState("Monitoring... Ready for Owner Command.");
   const [pei, setPei] = useState(0);
   const [peiTrend, setPeiTrend] = useState([]);
   const [maintenanceScore, setMaintenanceScore] = useState(0);
@@ -52,6 +158,39 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
   const [buyerRisk, setBuyerRisk] = useState({});
   const [govSchemes, setGovSchemes] = useState({});
 
+  // Gov-Portal New States
+  const [udyamLinked, setUdyamLinked] = useState(false);
+  const [isLinkingUdyam, setIsLinkingUdyam] = useState(false);
+  const [govApplications, setGovApplications] = useState([]);
+  const [subsidyDraftStatus, setSubsidyDraftStatus] = useState(null); // 'drafting', 'completed', null
+  const [draftProgress, setDraftProgress] = useState(0);
+
+  // Phase 2: High-Fidelity Realism States
+  const [showUdyamModal, setShowUdyamModal] = useState(false);
+  const [udyamFile, setUdyamFile] = useState(null);
+  const [isOcrScanning, setIsOcrScanning] = useState(false);
+  const [ocrData, setOcrData] = useState(null);
+  
+  const [growthSliders, setGrowthSliders] = useState({ solar: 10, training: 20, automation: 5 });
+  const [projectedRoi, setProjectedRoi] = useState(12.4);
+  
+  const [isScanningTexture, setIsScanningTexture] = useState(false);
+  const [textureHash, setTextureHash] = useState(null);
+  const [showArbitrageTable, setShowArbitrageTable] = useState(false);
+
+  // Phase 3: Advanced Gov Insights States
+  const [isScanningSchemes, setIsScanningSchemes] = useState(false);
+  const [grantProbability, setGrantProbability] = useState(0);
+  const [selectedScheme, setSelectedScheme] = useState(null);
+  const [scanSteps, setScanSteps] = useState([]);
+
+  // Phase 4: Final Industrial Polish States
+  const [isThermalScanning, setIsThermalScanning] = useState(false);
+  const [thermalMap, setThermalMap] = useState(null);
+  const [spectralWave, setSpectralWave] = useState(false);
+  const [logisticsManifest, setLogisticsManifest] = useState(null);
+  const [isSyncingBlockchain, setIsSyncingBlockchain] = useState(false);
+
   // Textile Specific
   const [textileMetrics, setTextileMetrics] = useState({});
   const [textileTrend, setTextileTrend] = useState([]);
@@ -61,7 +200,27 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
   const [laborSkill, setLaborSkill] = useState({});
   const [downtimePrediction, setDowntimePrediction] = useState({});
   const [workflowOpt, setWorkflowOpt] = useState({});
-  const [manualData, setManualData] = useState(JSON.parse(localStorage.getItem('manualFactoryData')) || {});
+  const getManualData = () => {
+    try {
+      const raw = localStorage.getItem('manualFactoryData');
+      return raw ? JSON.parse(raw) : {};
+    } catch (e) {
+      console.error("Failed to parse manualFactoryData:", e);
+      return {};
+    }
+  };
+
+  const [manualData, setManualData] = useState(getManualData());
+
+  // Helper to safely render values from AI responses
+  const renderSafeValue = (val, fallback = "0") => {
+    if (val === null || val === undefined) return fallback;
+    if (typeof val === 'object') {
+      // If it's a giant object, don't stringify the whole thing in the UI
+      return val.value || val.score || val.amount || JSON.stringify(val).substring(0, 50);
+    }
+    return val;
+  };
 
   // Interactive Demo States
   const [yarnReordered, setYarnReordered] = useState(false);
@@ -104,7 +263,6 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
     1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0
   });
 
-
   const [lastAgentMsg, setLastAgentMsg] = useState({
     yarn: "Expected 8% price hike in Bhilwara Mandi by Friday.",
     truck: "200 Rolls ready. An empty truck returning to Surat is 5km away.",
@@ -129,6 +287,26 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
   ]);
   const [focusedAgent, setFocusedAgent] = useState(null);
 
+  // Plant Floor Interactive States
+  const [isVoiceActive, setIsVoiceActive] = useState(false);
+  const [voiceStep, setVoiceStep] = useState(0); // 0: Idle, 1: Listening, 2: Transcribing, 3: Completed
+  const [isTwinLoading, setIsTwinLoading] = useState(false);
+  const [isOrchestrating, setIsOrchestrating] = useState(false);
+  const [karigarAssigned, setKarigarAssigned] = useState(false);
+  const [isSyncingGenerators, setIsSyncingGenerators] = useState(false);
+  const [isOptimizingShift, setIsOptimizingShift] = useState(false);
+  const [cvDefect, setCvDefect] = useState({ top: '40%', left: '45%', label: '1.2mm Yarn Breakage (97%)', color: '#f43f5e' });
+
+  // Camera States
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [cameraStream, setCameraStream] = useState(null);
+  const [isStreamReady, setIsStreamReady] = useState(false);
+  const [cameraError, setCameraError] = useState("");
+  const [showTwinModal, setShowTwinModal] = useState(false);
+  const [microAdjustments, setMicroAdjustments] = useState([]);
+
   useEffect(() => {
     const logInterval = setInterval(() => {
       const logPool = [
@@ -140,7 +318,10 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
         { msg: "[Agent-33] Warehouse Temp stable. Humidity drift corrected (+1.5% RH).", type: "success" }
       ];
       const randomLog = logPool[Math.floor(Math.random() * logPool.length)];
-      setStrategicAiLogs(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString(), ...randomLog }, ...prev.slice(0, 49)]);
+      setStrategicAiLogs(prev => {
+        const newId = Date.now() + Math.random();
+        return [{ id: newId, time: new Date().toLocaleTimeString(), ...randomLog }, ...prev.slice(0, 49)];
+      });
     }, 8000);
     return () => clearInterval(logInterval);
   }, []);
@@ -179,7 +360,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
         if (coreStates[5] === 0) {
           const latency = (Math.random() * (2.5 - 0.8) + 0.8).toFixed(1);
           const temp = (Math.random() * (35.5 - 28.0) + 28.0).toFixed(1);
-          newCoreState[5] = `[Edge Node] Zero-latency safety override active. Floor Node 4 latency: ${latency}ms. Ambient server temp: ${temp}°C.`;
+          newCoreState[5] = `[Edge Node] Zero-latency safety override active. Floor Node 4 latency: ${latency}ms. Ambient server temp: ${temp}C.`;
         }
 
         if (coreStates[6] === 0) {
@@ -235,7 +416,10 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
               Object.keys(coreRequestIds).forEach(agentId => {
                 if (req._id === coreRequestIds[agentId] && coreStates[agentId] === 2) {
                   setCoreStates(prev => ({ ...prev, [agentId]: 3 }));
-                  setSystemEvents(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString(), msg: `Core AI: Request Approved. Optimization complete.`, type: 'success' }, ...prev]);
+                  setSystemEvents(prev => {
+                    const newId = Date.now() + Math.random();
+                    return [{ id: newId, time: new Date().toLocaleTimeString(), msg: `Core AI: Request Approved. Optimization complete.`, type: 'success' }, ...prev];
+                  });
                 }
               });
             } else if (req.status === 'Rejected') {
@@ -304,221 +488,505 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
     { id: 5, time: '10:25:05', msg: 'Alert: Grid power fluctuation detected', type: 'danger' }
   ]);
 
+  // --- Consolidated Data Fetching Engine ---
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+
   useEffect(() => {
-    // Check for user-driven data overrides from LocalStorage
-    const rawManualData = localStorage.getItem('manualFactoryData');
-    const localManualData = rawManualData ? JSON.parse(rawManualData) : null;
-    if (localManualData) setManualData(localManualData);
+    let isMounted = true;
 
-    // Prepare standardized payloads
-    const prodPayload = localManualData ? {
-      actualOutput: localManualData.actualOutput,
-      expectedOutput: localManualData.expectedOutput
-    } : {};
+    const fetchData = async () => {
+      if (!isMounted) return;
+      setIsInitialLoading(true);
 
-    const maintPayload = localManualData ? {
-      uptime: localManualData.uptime,
-      breakdowns: localManualData.breakdowns,
-      daysSince: localManualData.daysSince
-    } : {};
+      // Safety fallback: ensure loading is dismissed after 15s even if APIs hang
+      const safetyTimeout = setTimeout(() => {
+        if (isMounted) setIsInitialLoading(false);
+      }, 15000);
 
-    const textilePayload = localManualData ? {
-      fabricProduced: localManualData.fabricProducedMeters,
-      loomHours: localManualData.loomHours,
-      yarnUsed: localManualData.yarnUsedKg
-    } : {};
+      try {
+        // Essential Data First
+        const [mStatus, iAlerts] = await Promise.all([
+          api.get("/machine/status"),
+          api.get("/inventory/alerts")
+        ]);
+        if (isMounted) {
+          setMachineStatus(mStatus.data);
+          setInventoryAlerts(iAlerts.data);
+        }
 
-    const financePayload = localManualData ? {
-      cost: localManualData.operatingCost,
-      price: localManualData.revenue
-    } : {};
+        // Prepare standardized payloads
+        const localManualData = manualData;
+        const prodPayload = {
+          actualOutput: localManualData?.actualOutput,
+          expectedOutput: localManualData?.expectedOutput
+        };
+        const maintPayload = {
+          uptime: localManualData?.uptime,
+          breakdowns: localManualData?.breakdowns,
+          daysSince: localManualData?.daysSince
+        };
+        const textilePayload = {
+          fabricProduced: localManualData?.fabricProducedMeters,
+          loomHours: localManualData?.loomHours,
+          yarnUsed: localManualData?.yarnUsedKg
+        };
+        const financePayload = {
+          cost: localManualData?.operatingCost,
+          price: localManualData?.revenue
+        };
+        const qualityPayload = {
+          defects: localManualData?.defectsCount,
+          totalUnits: localManualData?.totalUnitsTested
+        };
 
-    const qualityPayload = localManualData ? {
-      defects: localManualData.defectsCount,
-      totalUnits: localManualData.totalUnitsTested
-    } : {};
+        // Operations & Overview Batch
+        const opsBatch = await Promise.all([
+          api.post("/ai/delay", { avgOutput: localManualData?.actualOutput }),
+          api.post("/ai/efficiency", prodPayload),
+          api.post("/ai/maintenance", {
+            uptimeHours: localManualData?.uptime,
+            breakdowns: localManualData?.breakdowns,
+            vibration: localManualData?.vibration,
+            temp: localManualData?.temp
+          }),
+          api.post("/ai/quality", {
+            defects: localManualData?.defectsCount,
+            totalUnits: localManualData?.totalUnitsTested,
+            gsmDeviation: localManualData?.gsmDeviation,
+            colorVariance: localManualData?.colorVariance,
+            shrinkage: localManualData?.shrinkage,
+            certification: localManualData?.certification
+          }),
+          api.post("/ai/safety", {
+            accidentFreeDays: localManualData?.accidentFreeDays,
+            ppeComplianceRate: localManualData?.ppeCompliance,
+            drills: localManualData?.safetyDrills,
+            hazards: localManualData?.unresolvedHazards
+          }),
+          api.post("/ai/maintenance-score", maintPayload),
+          api.post("/ai/anomaly", { todayValue: localManualData?.actualOutput }),
+          api.post("/ai/reliability", { uptime: localManualData?.uptime }),
+          api.post("/ai/digital-maturity", {}),
+          api.post("/ai/benchmark", { actualOutput: localManualData?.actualOutput }),
+          api.post("/ai/power", {
+            powerUsed: localManualData?.powerConsumedKwh,
+            solarContribution: localManualData?.solarContribution
+          }),
+          api.post("/ai/workforce", { actualOutput: localManualData?.actualOutput, workers: localManualData?.activeWorkers })
+        ]);
 
-    /*
-     * Phase 4: Winner's Final Final Polish - SaaS & Strategy
-     * - [x] Implement Dynamic Role-Based Layouts (Operator/Manager/Owner)
-     * - [x] Create "Strategic Intelligence" Tab (SaaS/ESG/Maturity)
-     * - [x] Build "Bhilwara Gov-Portal" Section (Local Schemes)
-     * - [x] Upgrade "What-If" Tool into interactive Simulation Hub
-     * - [x] Final Aesthetic Sweep (Glow effects & Command Center feel)
-     */
+        if (isMounted) {
+          setDelay(opsBatch[0].data);
+          setPei(opsBatch[1].data.current);
+          if (opsBatch[1].data.trend) setPeiTrend(opsBatch[1].data.trend);
+          setMaintenance(opsBatch[2].data);
+          setQuality(opsBatch[3].data);
+          setSafety(opsBatch[4].data);
+          setMaintenanceScore(opsBatch[5].data.score || opsBatch[5].data);
+          setAnomaly(opsBatch[6].data);
+          setReliability(opsBatch[7].data.availability !== undefined ? opsBatch[7].data.availability : opsBatch[7].data);
+          setDigitalMaturity(opsBatch[8].data.score || opsBatch[8].data);
+          setBenchmark(opsBatch[9].data);
+          setSolar(opsBatch[10].data);
+          setWorkforce(opsBatch[11].data);
+        }
 
-    // Basic Data
-    api.get("/machine/status").then(r => setMachineStatus(r.data));
-    api.get("/inventory/alerts").then(r => setInventoryAlerts(r.data));
+        // Supply Chain & Sustainability Batch
+        const scBatch = await Promise.all([
+          api.post("/ai/yarn-price", { yarnPrice: localManualData?.yarnPrice }),
+          api.post("/ai/subcontractor", {}),
+          api.post("/ai/seasonal-demand", {}),
+          api.post("/ai/export-score", {}),
+          api.post("/ai/cluster", { actualOutput: localManualData?.actualOutput, targetOutput: localManualData?.expectedOutput }),
+          api.post("/ai/esg", { wasteKg: localManualData?.wasteResaleValue, downtimeHours: (localManualData?.breakdowns || 0) * 4 }),
+          api.post("/ai/water", { waterUsage: localManualData?.waterUsage, recycledWater: localManualData?.recycledWater }),
+          api.post("/ai/waste", { actualOutput: localManualData?.actualOutput }),
+          api.post("/ai/heatwave", {}),
+          api.post("/ai/cost-optimization", { actualOutputToday: localManualData?.actualOutput }),
+          api.post("/ai/credit-risk", {}),
+          api.post("/ai/profit", financePayload),
+          api.post("/ai/buyer-risk", {}),
+          api.post("/ai/gov-schemes", {})
+        ]);
 
-    // Operations & Overview
-    api.post("/ai/delay", { avgOutput: manualData?.actualOutput }).then(r => setDelay(r.data));
-    api.post("/ai/efficiency", prodPayload).then(r => {
-      setPei(r.data.current);
-      if (r.data.trend) setPeiTrend(r.data.trend);
-    });
-    api.post("/ai/maintenance", {
-      uptimeHours: manualData?.uptime,
-      breakdowns: manualData?.breakdowns,
-      vibration: manualData?.vibration,
-      temp: manualData?.temp
-    }).then(r => setMaintenance(r.data));
-    api.post("/ai/quality", {
-      defects: manualData?.defectsCount,
-      totalUnits: manualData?.totalUnitsTested,
-      gsmDeviation: manualData?.gsmDeviation,
-      colorVariance: manualData?.colorVariance,
-      shrinkage: manualData?.shrinkage,
-      certification: manualData?.certification
-    }).then(r => setQuality(r.data));
-    api.post("/ai/safety", {
-      accidentFreeDays: manualData?.accidentFreeDays,
-      ppeComplianceRate: manualData?.ppeCompliance,
-      drills: manualData?.safetyDrills,
-      hazards: manualData?.unresolvedHazards
-    }).then(r => setSafety(r.data));
-    api.post("/ai/maintenance-score", maintPayload).then(r => setMaintenanceScore(r.data.score || r.data));
-    api.post("/ai/anomaly", { todayValue: manualData?.actualOutput }).then(r => setAnomaly(r.data));
-    api.post("/ai/reliability", { uptime: manualData?.uptime }).then(r => setReliability(r.data.availability !== undefined ? r.data.availability : r.data));
-    api.post("/ai/digital-maturity", {}).then(r => setDigitalMaturity(r.data.score || r.data));
-    api.post("/ai/benchmark", { actualOutput: manualData?.actualOutput }).then(r => setBenchmark(r.data));
-    api.post("/ai/power", {
-      powerUsed: manualData?.powerConsumedKwh,
-      solarContribution: manualData?.solarContribution
-    }).then(r => setSolar(r.data));
-    api.post("/ai/workforce", { actualOutput: manualData?.actualOutput, workers: manualData?.activeWorkers }).then(r => setWorkforce(r.data));
+        if (isMounted) {
+          setYarnPrice(scBatch[0].data);
+          setSubcontractor(scBatch[1].data);
+          setSeason(scBatch[2].data);
+          setExportScore(scBatch[3].data.score || scBatch[3].data);
+          setCluster(scBatch[4].data);
+          setEsg(scBatch[5].data);
+          setWater(scBatch[6].data);
+          if (scBatch[6].data.trend) setWaterTrend(scBatch[6].data.trend);
+          setWaste(scBatch[7].data);
+          setHeatwave(scBatch[8].data);
+          setCostOptimization(scBatch[9].data);
+          if (scBatch[9].data.breakdown) setCostBreakdown(scBatch[9].data.breakdown);
+          setCreditRisk(scBatch[10].data);
+          setProfit(scBatch[11].data);
+          setBuyerRisk(scBatch[12].data);
+          setGovSchemes(scBatch[13].data);
+        }
 
-    // Supply Chain
-    api.post("/ai/yarn-price", { yarnPrice: manualData?.yarnPrice }).then(r => setYarnPrice(r.data));
-    api.post("/ai/subcontractor", {}).then(r => setSubcontractor(r.data));
-    api.post("/ai/seasonal-demand", {}).then(r => setSeason(r.data));
-    api.post("/ai/export-score", {}).then(r => setExportScore(r.data.score || r.data));
-    api.post("/ai/cluster", {
-      actualOutput: manualData?.actualOutput,
-      targetOutput: manualData?.expectedOutput
-    }).then(r => setCluster(r.data));
+        // textile & Advanced Batch
+        const textileBatch = await Promise.all([
+          api.post("/ai/textile-metrics", textilePayload),
+          api.post("/ai/textile-flow", {}),
+          api.post("/ai/yarn-optimize", {}),
+          api.post("/ai/labor-skill", { trainingHours: localManualData?.trainingHours }),
+          api.post("/ai/predict-downtime", {
+            vibration: localManualData?.vibration,
+            temp: localManualData?.temp,
+            uptime: localManualData?.uptime
+          }),
+          api.post("/ai/executive-summary", prodPayload),
+          api.post("/ai/recommendations", maintPayload)
+        ]);
 
-    // Sustainability
-    api.post("/ai/esg", { wasteKg: manualData?.wasteResaleValue, downtimeHours: (manualData?.breakdowns || 0) * 4 }).then(r => {
-      setEsg(r.data);
-    });
-    api.post("/ai/water", {
-      waterUsage: manualData?.waterUsage,
-      recycledWater: manualData?.recycledWater
-    }).then(r => {
-      setWater(r.data);
-      if (r.data.trend) setWaterTrend(r.data.trend);
-    });
-    api.post("/ai/waste", { actualOutput: manualData?.actualOutput }).then(r => setWaste(r.data));
-    api.post("/ai/heatwave", {}).then(r => setHeatwave(r.data));
+        if (isMounted) {
+          setTextileMetrics(textileBatch[0].data);
+          if (textileBatch[0].data.trend) setTextileTrend(textileBatch[0].data.trend);
+          setTextileFlow(textileBatch[1].data);
+          setYarnOpt(textileBatch[2].data);
+          setLaborSkill(textileBatch[3].data);
+          setDowntimePrediction(textileBatch[4].data);
+          setExecutiveSummary(textileBatch[5].data);
+          setRecommendations(textileBatch[6].data.actions);
+        }
 
-    // Finance
-    api.post("/ai/cost-optimization", { actualOutputToday: manualData?.actualOutput }).then(r => {
-      setCostOptimization(r.data);
-      if (r.data.breakdown) setCostBreakdown(r.data.breakdown);
-    });
-    api.post("/ai/credit-risk", {}).then(r => setCreditRisk(r.data));
-    api.post("/ai/profit", financePayload).then(r => setProfit(r.data));
-    api.post("/ai/buyer-risk", {}).then(r => setBuyerRisk(r.data));
-    api.post("/ai/gov-schemes", {}).then(r => setGovSchemes(r.data));
+      } catch (err) {
+        console.error("Dashboard data fetch error:", err);
+      } finally {
+        if (isMounted) {
+          setIsInitialLoading(false);
+          clearTimeout(safetyTimeout);
+        }
+      }
+    };
 
-    // Textile
-    api.post("/ai/textile-metrics", textilePayload).then(r => {
-      setTextileMetrics(r.data);
-      if (r.data.trend) setTextileTrend(r.data.trend);
-    });
-    api.post("/ai/textile-flow", {}).then(r => setTextileFlow(r.data));
-    api.post("/ai/quality", qualityPayload).then(r => setQuality(r.data));
-    api.post("/ai/yarn-optimize", {}).then(r => setYarnOpt(r.data));
-    api.post("/ai/labor-skill", { trainingHours: manualData?.trainingHours }).then(r => setLaborSkill(r.data));
+    fetchData();
+    return () => { isMounted = false; };
+  }, [manualData]);
 
-    // PS-005 Advanced Automation
-    api.post("/ai/predict-downtime", {
-      vibration: manualData?.vibration,
-      temp: manualData?.temp,
-      uptime: manualData?.uptime
-    }).then(r => setDowntimePrediction(r.data));
+  // --- Unified Simulation Engine ---
+  useEffect(() => {
+    let isMounted = true;
+    const intervals = [];
 
-    api.post("/ai/optimize-workflow", {
-      grey: textileFlow.greyProduced,
-      dyed: textileFlow.dyedCompleted,
-      finished: textileFlow.finishedCompleted
-    }).then(r => setWorkflowOpt(r.data));
+    // Rapid Telemetry (Operations Tab) - 3s
+    intervals.push(setInterval(() => {
+      if (!isMounted || activeTab !== 'operations') return;
+      setMachineStatus(prev => Array.isArray(prev) ? prev.map(m => ({
+        ...m,
+        temp: Math.max(30, Math.min(110, m.temp + (Math.random() * 4 - 2))),
+        rpm: Math.max(500, Math.min(1200, m.rpm + (Math.random() * 20 - 10))),
+        vibration: Math.random() > 0.8 ? 'High' : (Math.random() > 0.4 ? 'Normal' : 'Low')
+      })) : prev);
+    }, 3000));
 
-    api.post("/ai/executive-summary", prodPayload).then(r => setExecutiveSummary(r.data));
-    api.post("/ai/recommendations", maintPayload).then(r => setRecommendations(r.data.actions));
-  }, []);
+    // AI Strategic Logging - 8s
+    intervals.push(setInterval(() => {
+      if (!isMounted) return;
+      const logOptions = [
+        { msg: "Predictive AI: Shift rotation recommended for Sector 7 to optimize energy.", type: "info" },
+        { msg: "Quality AI: Grain thickness deviation detected on Loom 12.", type: "warning" },
+        { msg: "Supply Chain AI: Yarn shipment from Bursa delayed by 4 hours.", type: "warning" },
+        { msg: "Sustainability AI: Solar contribution peaked at 42%.", type: "success" },
+        { msg: "Finance AI: Export margin optimized via currency arbitrage.", type: "success" }
+      ];
+      const randomLog = logOptions[Math.floor(Math.random() * logOptions.length)];
+      setStrategicAiLogs(prev => {
+        const newId = Date.now() + Math.random();
+        return [{ id: newId, time: new Date().toLocaleTimeString(), ...randomLog }, ...prev.slice(0, 49)];
+      });
+    }, 8000));
 
-  const renderAgentGrid = (categories, title) => (
-    <div className="industrial-panel" style={{ padding: '2rem', marginTop: '3rem', borderTop: '2px solid var(--primary-20)', borderRadius: '1rem' }}>
-      <h3 className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--primary)', letterSpacing: '2px', textTransform: 'uppercase' }}>
-        <Network size={22} /> {title} (From 52 Agent Library)
-      </h3>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px', marginTop: '1.5rem' }}>
-        {agentsData.filter(a => categories.includes(a.category)).map(agent => (
-          <div key={typeof agent.id === 'object' ? JSON.stringify(agent.id) : agent.id} style={{
-            background: focusedAgent?.id === agent.id ? 'rgba(99, 102, 241, 0.1)' : 'rgba(255,255,255,0.02)',
-            border: focusedAgent?.id === agent.id ? '2px solid var(--primary)' : '1px solid rgba(255,255,255,0.05)',
-            borderRadius: '12px',
-            padding: '16px',
-            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            cursor: 'pointer',
-            position: 'relative',
-            overflow: 'hidden'
-          }}
-            onClick={() => setFocusedAgent(focusedAgent?.id === agent.id ? null : agent)}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-              <span style={{ fontSize: '0.65rem', background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{typeof agent.category === 'object' ? JSON.stringify(agent.category) : agent.category}</span>
-              {agent.status === 'Active' ? <span style={{ color: 'var(--accent)', fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '4px' }}><div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent)', animation: 'pulse 1.5s infinite' }}></div> Active</span> : <span style={{ color: 'var(--warning)', fontSize: '0.7rem' }}>Learning Mode</span>}
-            </div>
-            <div style={{ fontWeight: '700', fontSize: '0.9rem', marginBottom: '8px', lineHeight: 1.3 }}>{typeof agent.id === 'object' ? JSON.stringify(agent.id) : agent.id}. {typeof agent.name === 'object' ? JSON.stringify(agent.name) : agent.name}</div>
+    // Dynamic Context Changes - 4.5s
+    intervals.push(setInterval(() => {
+      if (!isMounted) return;
+      const messages = [
+        "Processing demand forecast for Q3 Suiting...",
+        "Evaluating ESG impact of Loom cluster 4...",
+        "Generating executive summary for Bhilwara cluster...",
+        "Monitoring real-time yarn pricing from Global markets...",
+        "Optimizing workforce distribution for night shift..."
+      ];
+      setAgentMessage(messages[Math.floor(Math.random() * messages.length)]);
+    }, 4500));
 
-            {agent.risk !== 'Low' && agent.risk !== 'N/A' && (
-              <div style={{ fontSize: '0.75rem', color: agent.risk.includes('Critical') ? 'var(--danger)' : 'var(--warning)' }}>
-                Alert Policy: <strong>{typeof agent.risk === 'object' ? JSON.stringify(agent.risk) : agent.risk}</strong>
-              </div>
-            )}
+    // Owner Approval Polling - 3s
+    intervals.push(setInterval(async () => {
+      if (!isMounted) return;
+      try {
+        const response = await api.get('/owner/requests');
+        if (isMounted) setActiveRequests(response.data || []);
+      } catch (err) {
+        console.error("Owner polling error:", err);
+      }
+    }, 3000));
 
-            {/* Tactical Telemetry on Focus */}
-            {focusedAgent?.id === agent.id && (
-              <div className="animate-fade-in" style={{ marginTop: '12px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '12px' }}>
-                <div style={{ fontSize: '0.65rem', color: 'var(--primary)', fontWeight: 'bold', marginBottom: '6px', letterSpacing: '1px' }}>AGENT TELEMETRY STREAM</div>
-                <div style={{ height: '40px', display: 'flex', alignItems: 'flex-end', gap: '2px', background: 'rgba(0,0,0,0.2)', padding: '4px', borderRadius: '4px' }}>
-                  {[...Array(15)].map((_, i) => (
-                    <div key={i} style={{ flex: 1, background: 'var(--primary)', height: `${20 + Math.random() * 80}%`, opacity: 0.3 + (i / 15 * 0.5) }}></div>
-                  ))}
-                </div>
-                <div style={{ marginTop: '10px', fontSize: '0.7rem', color: '#94a3b8', fontStyle: 'italic', lineHeight: '1.4' }}>
-                  {
-                    agent.category === 'Core Systems' ? ({
-                      1: "Master control node balancing 52 sub-agents to prevent system lag.",
-                      2: "Central nervous system syncing telemetry between edge looms and cloud.",
-                      3: "Calculates global permutations for optimum production schedule.",
-                      4: "Global market sync. Adjusts local outputs to real-time demands.",
-                      5: "Zero-latency processor for critical machine safety shutdowns.",
-                      6: "Translates Hindi/Mewari voice commands into machine code.",
-                      7: "Automatically resolves resource conflicts between AI sub-agents."
-                    }[agent.id] || "Analyzing core system throughput...") : "Agent actively monitoring cluster performance and optimizing local edge compute."
-                  }
-                </div>
-              </div>
-            )}
+    // CV Defect Simulation - 5s
+    intervals.push(setInterval(() => {
+      if (!isMounted) return;
+      const defects = [
+        { label: "Broken End", color: "#ef4444", top: "20%", left: "40%" },
+        { label: "Double Pick", color: "#f59e0b", top: "60%", left: "30%" },
+        { label: "Slub", color: "#8b5cf6", top: "40%", left: "70%" },
+        { label: "Oil Stain", color: "#3b82f6", top: "15%", left: "60%" }
+      ];
+      setCvDefect(defects[Math.floor(Math.random() * defects.length)]);
+    }, 5000));
 
-            {/* Tactical Corner Decoration */}
-            <div style={{ position: 'absolute', top: 0, right: 0, width: '15px', height: '15px', borderTop: '1px solid var(--primary)', borderRight: '1px solid var(--primary)', opacity: 0.3 }}></div>
-          </div>
-        ))}
-      </div>
+    return () => {
+      isMounted = false;
+      intervals.forEach(clearInterval);
+    };
+  }, [activeTab]);
+
+  const handleVoiceAction = () => {
+    setVoiceStep(1);
+    setIsVoiceActive(true);
+    setTimeout(() => {
+      setVoiceStep(2);
+      setTimeout(() => {
+        setVoiceStep(3);
+        setSystemEvents(prev => [{
+          id: Date.now(),
+          time: new Date().toLocaleTimeString(),
+          msg: "Voice Assistant: 'Loom 4 thread-break logged. Requesting maintenance.'",
+          type: 'success'
+        }, ...prev]);
+        setTimeout(() => {
+          setIsVoiceActive(false);
+          setVoiceStep(0);
+        }, 3000);
+      }, 2000);
+    }, 2000);
+  };
+
+  const toggleCamera = async () => {
+    if (isCameraActive) {
+      // Stop Camera
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+      }
+      setCameraStream(null);
+      setIsCameraActive(false);
+      setIsStreamReady(false);
+      setSystemEvents(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString(), msg: "Vision AI: Live Camera Deactivated.", type: 'info' }, ...prev]);
+    } else {
+      // Start Camera
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        setCameraStream(stream);
+        setIsCameraActive(true);
+        setCameraError("");
+        setSystemEvents(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString(), msg: "Vision AI: Live Camera Activated. Calibrating...", type: 'success' }, ...prev]);
+      } catch (err) {
+        console.error("Camera error:", err);
+        setCameraError("Camera Access Denied or Missing.");
+        setSystemEvents(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString(), msg: "Vision AI Error: Failed to access camera.", type: 'danger' }, ...prev]);
+        alert("Camera access is required for live CV functions. Please check your permissions.");
+      }
+    }
+  };
+
+  // Robust Camera Binding and Forced Play Effect
+  useEffect(() => {
+    let isMounted = true;
+    const bindCamera = async () => {
+      if (isCameraActive && cameraStream && videoRef.current) {
+        try {
+          videoRef.current.srcObject = cameraStream;
+          videoRef.current.onloadedmetadata = async () => {
+            if (isMounted) {
+              try {
+                await videoRef.current.play();
+                setIsStreamReady(true);
+              } catch (err) {
+                console.error("Video play error:", err);
+                setCameraError("Autoplay blocked. Please click the camera again.");
+              }
+            }
+          };
+        } catch (err) {
+          console.error("Camera binding error:", err);
+          if (isMounted) setCameraError("Failed to bind camera stream.");
+        }
+      } else if (videoRef.current) {
+        videoRef.current.srcObject = null;
+        if (isMounted) setIsStreamReady(false);
+      }
+    };
+    bindCamera();
+    return () => { isMounted = false; };
+  }, [isCameraActive, cameraStream]);
+
+  const renderLoadingOverlay = () => (
+    <div style={{
+      position: 'fixed',
+      inset: 0,
+      background: '#070b14',
+      zIndex: 9999,
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '20px'
+    }}>
+      <div className="spin" style={{ width: '40px', height: '40px', border: '3px solid var(--primary-20)', borderTopColor: 'var(--primary)', borderRadius: '50%' }}></div>
+      <div style={{ color: 'var(--primary)', fontWeight: 'bold', letterSpacing: '2px', fontSize: '0.8rem' }}>SYNCING BRAHMA KERNEL...</div>
     </div>
   );
+
+  const handleUdyamLink = () => {
+    setShowUdyamModal(true);
+  };
+
+  const executeOcrScan = () => {
+    setIsOcrScanning(true);
+    let step = 0;
+    const interval = setInterval(() => {
+      step += 1;
+      if (step >= 100) {
+        clearInterval(interval);
+        setOcrData({
+          company: "NIRVANA TEXTILES",
+          udyamId: "UDYAM-RJ-14-0029312",
+          category: "Small Enterprise",
+          date: "12-MAR-2026"
+        });
+        setIsOcrScanning(false);
+        setUdyamLinked(true);
+        setGovApplications([
+          { id: 'APP1024', name: 'RIPS 2022 Interest Subvention', status: 'In Review', date: '2026-03-01' },
+          { id: 'APP1055', name: 'Solar Grid Subsidy (Phase 1)', status: 'Approved', date: '2026-02-15' }
+        ]);
+        setSystemEvents(prev => [{ id: Date.now() + Math.random(), time: new Date().toLocaleTimeString(), msg: "OCR Extraction Complete: UdyamRJ-14 Verified.", type: 'success' }, ...prev]);
+        setTimeout(() => setShowUdyamModal(false), 2000);
+      }
+    }, 40);
+  };
+
+  const handleTextureScan = () => {
+    setIsScanningTexture(true);
+    setStrategicAiLogs(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString(), msg: "Initializing Microscopic Texture Analysis...", type: "system" }, ...prev]);
+    
+    setTimeout(() => {
+      setTextureHash("BH-ROLL-902-X-CONFIRMED");
+      setIsScanningTexture(false);
+      setSystemEvents(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString(), msg: "Texture Fingerprint Verified: Roll #BH902-X AUTHENTIC", type: 'success' }, ...prev]);
+    }, 4000);
+  };
+
+  const updateStrategyRoi = (key, val) => {
+    const newSliders = { ...growthSliders, [key]: val };
+    setGrowthSliders(newSliders);
+    // Dynamic ROI Formula: Base 8% + weights
+    const calculated = 8 + (newSliders.solar * 0.1) + (newSliders.training * 0.15) + (newSliders.automation * 0.4);
+    setProjectedRoi(calculated.toFixed(1));
+  };
+
+  const handleSchemeScan = () => {
+    setIsScanningSchemes(true);
+    setScanSteps([]);
+    setGrantProbability(0);
+    
+    const steps = [
+      "Analyzing Factory Registration (Udyam Verified)",
+      "Checking PEI (Production Effectiveness Index) Thresholds",
+      "Scanning ZLD (Zero Liquid Discharge) Compliance",
+      "Verifying Karigar Training Hours vs RIPS 2022",
+      "Calculating Solar Grid Offset Factor"
+    ];
+
+    let currentStep = 0;
+    const interval = setInterval(() => {
+      if (currentStep < steps.length) {
+        setScanSteps(prev => [...prev, steps[currentStep]]);
+        setGrantProbability(prev => Math.min(85, prev + Math.floor(Math.random() * 20) + 10));
+        currentStep++;
+      } else {
+        clearInterval(interval);
+        setTimeout(() => {
+          setIsScanningSchemes(false);
+          setGrantProbability(88.4); // Final calculated score
+          setSystemEvents(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString(), msg: "AI Governance Scan: 88.4% Eligibility for RIPS-2022 Subsidy.", type: "success" }, ...prev]);
+        }, 1000);
+      }
+    }, 8000 / steps.length);
+  };
+
+  const handleGenAiSubsidy = () => {
+    setSubsidyDraftStatus('drafting');
+    setDraftProgress(0);
+    const steps = [
+      "Analyzing factory OEE stats...",
+      "Extracting energy grid data...",
+      "Calculating labor compliance score...",
+      "Formatting Rajasthan RIPS 2022 XML...",
+      "Generating final PDF draft..."
+    ];
+    
+    let currentStep = 0;
+    const interval = setInterval(() => {
+      currentStep++;
+      setDraftProgress(Math.round((currentStep / steps.length) * 100));
+      if (currentStep >= steps.length) {
+        clearInterval(interval);
+        setSubsidyDraftStatus('completed');
+        setSystemEvents(prev => [{ id: Date.now() + Math.random(), time: new Date().toLocaleTimeString(), msg: "GenAI: RIPS 2022 Application drafted successfully.", type: 'success' }, ...prev]);
+      } else {
+        setAgentMessage(`GenAI: ${steps[currentStep]}`);
+      }
+    }, 1000);
+  };
+
+  const handleDownloadReport = () => {
+    setAgentMessage("Generating Compliance Report...");
+    setTimeout(() => {
+      alert("Compliance Report Downloaded: smartfactory_bhilwara_compliance_2026.pdf");
+      setSystemEvents(prev => [{ id: Date.now() + Math.random(), time: new Date().toLocaleTimeString(), msg: "Compliance report generated & downloaded.", type: "info" }, ...prev]);
+    }, 1500);
+  };
+
+  const handleThermalScan = () => {
+    setIsThermalScanning(true);
+    setSpectralWave(true);
+    setStrategicAiLogs(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString(), msg: "Spectral Scan Initiated: Analyzing Loom-Motor Harmonics...", type: "system" }, ...prev]);
+    
+    setTimeout(() => {
+      setThermalMap({ loom4: 78.4, loom7: 92.1, stenter1: 65.2 });
+      setSystemEvents(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString(), msg: "Thermal Scan Complete: Critical Heat Gradient detected on Motor B-7.", type: "warning" }, ...prev]);
+      setTimeout(() => {
+        setIsThermalScanning(false);
+        setSpectralWave(false);
+      }, 5000);
+    }, 3000);
+  };
+
+  const handleLogisticsSync = () => {
+    setIsSyncingBlockchain(true);
+    setTimeout(() => {
+      setLogisticsManifest({
+        container: "MSKU-9921-X",
+        vessel: "Maersk Bhilwara-Express",
+        origin: "Mundra Port, Gujarat",
+        destination: "Bursa, Turkey",
+        verified: true,
+        hash: "0x882a...912c"
+      });
+      setIsSyncingBlockchain(false);
+      setSystemEvents(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString(), msg: "Blockchain Manifest Synced: Yarn Batch #902 Verified for Export.", type: "success" }, ...prev]);
+    }, 2500);
+  };
 
   useEffect(() => {
     // Generate contextual suggestions based on live dashboard state
     const contextualPool = [];
     const randomPool = [
       "Approve overtime for Shift B (Weavers)",
-      "Sell 3,000m Navy Blue dead-stock for ₹4.25L",
+      "Sell 3,000m Navy Blue dead-stock for 4.25L",
       "Reject 1500m Substandard Denim Batch #42",
       "Re-program Looms 1-3 for Navratri design surge",
       "Release quarterly bonus for Top 5% Operators",
@@ -531,7 +999,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
     // Priority 1: Machine Health & Maintenance
     if (machineVibration > 75) {
       contextualPool.push(`Dispatch Tech-Team to Loom (Vib: ${machineVibration}Hz)`);
-      contextualPool.push("Approve ₹15k emergency parts for Loom Repair");
+      contextualPool.push("Approve 15k emergency parts for Loom Repair");
     } else if (maintenanceScore < 85) {
       contextualPool.push("Authorize preventative maintenance on Stenter #2");
     }
@@ -572,6 +1040,8 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
 
   return (
     <div className="dashboard-container" style={{ display: 'flex', background: '#070b14', minHeight: '100vh', color: 'white', overflow: 'hidden' }}>
+      <style>{industrialStyles}</style>
+      {isInitialLoading && renderLoadingOverlay()}
       {/* Sidebar */}
       <nav className="sidebar">
         <div className="logo">
@@ -584,13 +1054,13 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
         <ul className="nav-links">
           <li className={`sidebar-link ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => setActiveTab('overview')}>
             <LayoutDashboard size={18} />
-            {lang === 'EN' ? 'SME Command Center' : 'अवलोकन'}
+            {lang === 'EN' ? 'SME Command Center' : ''}
           </li>
 
           {(userRole === 'Operator' || userRole === 'Manager' || userRole === 'Owner') && (
             <li className={`sidebar-link ${activeTab === 'operations' ? 'active' : ''}`} onClick={() => setActiveTab('operations')}>
               <Cpu size={18} />
-              {lang === 'EN' ? 'Plant Floor' : 'प्लांट फ्लोर'}
+              {lang === 'EN' ? 'Plant Floor' : ' '}
             </li>
           )}
 
@@ -600,7 +1070,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
           {(userRole === 'Operator' || userRole === 'Manager' || userRole === 'Owner') && (
             <li className={`sidebar-link ${activeTab === 'maintenance' ? 'active' : ''}`} onClick={() => setActiveTab('maintenance')}>
               <Settings size={18} />
-              {lang === 'EN' ? 'Predictive Maintenance' : 'रखरखाव'}
+              {lang === 'EN' ? 'Predictive Maintenance' : ''}
             </li>
           )}
 
@@ -610,14 +1080,14 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
           {userRole === 'Owner' && (
             <li className={`sidebar-link ${activeTab === 'finance' ? 'active' : ''}`} onClick={() => setActiveTab('finance')}>
               <DollarSign size={20} />
-              {lang === 'EN' ? 'Financial KPI' : 'वित्त और जोखिम'}
+              {lang === 'EN' ? 'Financial KPI' : '  '}
             </li>
           )}
 
           {(userRole === 'Operator' || userRole === 'Manager' || userRole === 'Owner') && (
             <li className={`sidebar-link ${activeTab === 'textile' ? 'active' : ''}`} onClick={() => setActiveTab('textile')}>
               <Briefcase size={18} />
-              {lang === 'EN' ? 'Textile Operations' : 'वस्त्र विशेष'}
+              {lang === 'EN' ? 'Textile Operations' : ' '}
             </li>
           )}
 
@@ -627,21 +1097,21 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
           {userRole === 'Owner' && (
             <li className={`sidebar-link ${activeTab === 'strategy' ? 'active' : ''}`} onClick={() => setActiveTab('strategy')}>
               <TrendingUp size={20} />
-              {lang === 'EN' ? 'Strategic Intelligence' : 'रणनीतिक बुद्धिमत्ता'}
+              {lang === 'EN' ? 'Strategic Intelligence' : ' '}
             </li>
           )}
 
           {userRole === 'Owner' && (
             <li className={`sidebar-link ${activeTab === 'agents' ? 'active' : ''}`} onClick={() => setActiveTab('agents')}>
               <Bot size={20} />
-              {lang === 'EN' ? 'AI Agent Library (52)' : 'एजंट लाइब्रेरी'}
+              {lang === 'EN' ? 'AI Agent Library (52)' : ' '}
             </li>
           )}
 
           {userRole === 'Owner' && (
             <li className={`sidebar-link ${activeTab === 'gov' ? 'active' : ''}`} onClick={() => setActiveTab('gov')} style={{ color: '#0ea5e9' }}>
               <Factory size={18} />
-              {lang === 'EN' ? 'Bhilwara Gov-Portal' : 'भीलवाड़ा सरकार पोर्टल'}
+              {lang === 'EN' ? 'Bhilwara Gov-Portal' : '  '}
             </li>
           )}
 
@@ -657,13 +1127,13 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
             onChange={(e) => setUserRole(e.target.value)}
             style={{ width: '100%', background: 'rgba(0,0,0,0.2)', color: 'white', border: '1px solid var(--border)', padding: '10px', borderRadius: '8px', fontSize: '0.75rem', marginBottom: '1rem', cursor: 'pointer' }}
           >
-            <option value="Operator">👷 OPERATOR VIEW</option>
-            <option value="Manager">📊 MANAGER VIEW</option>
-            <option value="Owner">👑 STRATEGIC OWNER</option>
+            <option value="Operator"> OPERATOR VIEW</option>
+            <option value="Manager"> MANAGER VIEW</option>
+            <option value="Owner"> STRATEGIC OWNER</option>
           </select>
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: '600' }}>{lang === 'EN' ? 'AI Learning' : 'AI लर्निंग'}</span>
+            <span style={{ fontSize: '0.75rem', fontWeight: '600' }}>{lang === 'EN' ? 'AI Learning' : 'AI '}</span>
             <div
               style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
               onClick={() => setIsAiLearningMode(!isAiLearningMode)}
@@ -676,7 +1146,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: '600' }}>{lang === 'EN' ? 'Interface' : 'भाषा'}</span>
+            <span style={{ fontSize: '0.75rem', fontWeight: '600' }}>{lang === 'EN' ? 'Interface' : ''}</span>
             <button
               onClick={() => setLang(lang === 'EN' ? 'HI' : 'EN')}
               className="lang-indicator"
@@ -698,8 +1168,8 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
               </span>
               {userRole === 'Owner' && <span className="badge" style={{ background: 'rgba(234, 179, 8, 0.1)', color: '#eab308', border: '1px solid #eab308' }}>PREMIUM ROLE</span>}
             </div>
-            <h1>{lang === 'EN' ? `Welcome, ${userRole === 'Owner' ? 'Strategic Owner' : userRole}` : `${userRole === 'Owner' ? 'रणनीतिक मालिक' : userRole} का स्वागत है`}</h1>
-            <p>{lang === 'EN' ? 'Real-time intelligence and AI-driven optimization' : 'रीयल-टाइम इंटेलिजेंस और एआई-संचालित अनुकूलन'}</p>
+            <h1>{lang === 'EN' ? `Welcome, ${userRole === 'Owner' ? 'Strategic Owner' : userRole}` : `${userRole === 'Owner' ? ' ' : userRole}   `}</h1>
+            <p>{lang === 'EN' ? 'Real-time intelligence and AI-driven optimization' : '-   - '}</p>
           </div>
           <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <button
@@ -778,13 +1248,13 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
               <div style={{ position: 'relative', zIndex: 2 }}>
                 <h2 style={{ fontSize: '2.4rem', fontWeight: '800', marginBottom: '0.5rem', letterSpacing: '-0.02em' }}>TexTech Intelligence Hub</h2>
                 <p style={{ color: 'rgba(255,255,255,0.8)', maxWidth: '700px', fontSize: '1.1rem', lineHeight: '1.6' }}>
-                  The factory is performing at <span style={{ color: 'var(--accent)', fontWeight: '700' }}>{typeof pei === 'object' ? JSON.stringify(pei) : pei}%</span> efficiency.
+                  The factory is performing at <span style={{ color: 'var(--accent)', fontWeight: '700' }}>{renderSafeValue(pei)}%</span> efficiency.
                   AI predicts <span style={{ color: 'var(--primary)', fontWeight: '700' }}>{String(delay || "").includes('High') ? 'moderate' : 'zero'}</span> disruption risk in the current production cycle.
                 </p>
                 <div style={{ display: 'flex', gap: '3rem', marginTop: '2.5rem' }}>
                   <div className="hero-stat">
                     <div style={{ fontSize: '0.75rem', fontWeight: '600', opacity: 0.6, letterSpacing: '0.05em', marginBottom: '4px' }}>PLANT HEALTH</div>
-                    <div style={{ fontSize: '2rem', fontWeight: '800' }}>{typeof maintenanceScore === 'object' ? JSON.stringify(maintenanceScore) : maintenanceScore}%</div>
+                    <div style={{ fontSize: '2rem', fontWeight: '800' }}>{renderSafeValue(maintenanceScore)}%</div>
                   </div>
                   <div className="hero-stat">
                     <div style={{ fontSize: '0.75rem', fontWeight: '600', opacity: 0.6, letterSpacing: '0.05em', marginBottom: '4px' }}>LIVE ALERTS</div>
@@ -792,7 +1262,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                   </div>
                   <div className="hero-stat">
                     <div style={{ fontSize: '0.75rem', fontWeight: '600', opacity: 0.6, letterSpacing: '0.05em', marginBottom: '4px' }}>RELIABILITY</div>
-                    <div style={{ fontSize: '2rem', fontWeight: '800', color: 'var(--accent)' }}>{typeof reliability === 'object' ? JSON.stringify(reliability) : reliability}%</div>
+                    <div style={{ fontSize: '2rem', fontWeight: '800', color: 'var(--accent)' }}>{renderSafeValue(reliability)}%</div>
                   </div>
                 </div>
               </div>
@@ -817,7 +1287,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                 <div>
                   <h2 style={{ fontSize: '1.25rem', fontWeight: '800', marginBottom: '4px' }}>Executive Strategy Summary</h2>
                   <p style={{ fontSize: '0.95rem', opacity: 0.8, lineHeight: '1.4' }}>
-                    {typeof executiveSummary.summary === 'object' ? JSON.stringify(executiveSummary.summary) : executiveSummary.summary || "Analyzing plant telemetry... Overall production is stable with a 12% projected growth in net margin this month. Workforce skill index in Bhilwara cluster is up by 4%."}
+                    {renderSafeValue(executiveSummary?.summary, "Analyzing plant telemetry... Overall production is stable with a 12% projected growth in net margin this month. Workforce skill index in Bhilwara cluster is up by 4%.")}
                   </p>
                 </div>
               </div>
@@ -832,7 +1302,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                   <div className="stat-icon"><Activity size={20} /></div>
                   <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--accent)' }}>AI REAL-TIME</span>
                 </div>
-                <div className="stat-value">{typeof pei === 'object' ? JSON.stringify(pei) : pei || 0}%</div>
+                <div className="stat-value">{renderSafeValue(pei, 0)}%</div>
                 <div className="stat-label">Production Efficiency Index</div>
               </div>
 
@@ -846,7 +1316,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                     {anomaly.hasAnomaly ? 'ANOMALY DETECTED' : 'SECURE'}
                   </span>
                 </div>
-                <div className="stat-value">{typeof anomaly.type === 'object' ? JSON.stringify(anomaly.type) : anomaly.type || 'Normal'}</div>
+                <div className="stat-value">{renderSafeValue(anomaly?.type, 'Normal')}</div>
                 <div className="stat-label">AI Anomaly Monitor</div>
               </div>
 
@@ -855,7 +1325,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                   <div className="stat-icon"><ShieldCheck size={20} /></div>
                   <span className="badge" style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--primary)' }}>PREDICTIVE</span>
                 </div>
-                <div className="stat-value">{typeof reliability === 'object' ? JSON.stringify(reliability) : reliability || 0}%</div>
+                <div className="stat-value">{renderSafeValue(reliability, 0)}%</div>
                 <div className="stat-label">System Reliability Score</div>
               </div>
 
@@ -896,7 +1366,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                     <button className="btn-primary" style={{ width: '100%', background: '#10b981', border: 'none', color: 'black', fontWeight: 'bold', padding: '8px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', marginTop: 'auto' }}
                       onClick={() => {
                         setYarnState(1);
-                        setLastAgentMsg(prev => ({ ...prev, yarn: "Mandi prices are rising. 500kg order will save ₹12,000 if placed now. Shall I draft the PO?" }));
+                        setLastAgentMsg(prev => ({ ...prev, yarn: "Mandi prices are rising. 500kg order will save 12,000 if placed now. Shall I draft the PO?" }));
                       }}
                     >Negotiate with Mandi</button>
                   )}
@@ -907,7 +1377,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                         onClick={async () => {
                           setYarnState(2);
                           setLastAgentMsg(prev => ({ ...prev, yarn: "Proposed PO: 500kg. Waiting for Owner Approval in Command Terminal..." }));
-                          const req = await triggerOwnerRequest('YarnAI', 'Purchase Order', 'Order 500kg Cotton Yarn from Sharma Suppliers at ₹240/kg.');
+                          const req = await triggerOwnerRequest('YarnAI', 'Purchase Order', 'Order 500kg Cotton Yarn from Sharma Suppliers at 240/kg.');
                           if (req?._id) setActiveRequestIds(prev => ({ ...prev, yarn: req._id }));
                         }}
                       >Request Approval</button>
@@ -924,7 +1394,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
 
                   {yarnState === 3 && (
                     <div style={{ marginTop: 'auto', textAlign: 'center', padding: '8px', background: 'rgba(16, 185, 129, 0.2)', borderRadius: '6px', color: '#10b981', fontWeight: 'bold', fontSize: '0.8rem' }}>
-                      Approved & Finalized ✅
+                      Approved & Finalized
                     </div>
                   )}
                 </div>
@@ -949,7 +1419,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                     <button className="btn-primary" style={{ width: '100%', background: '#ec4899', border: 'none', color: 'white', fontWeight: 'bold', padding: '8px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', marginTop: 'auto' }}
                       onClick={() => {
                         setMahaparvState(1);
-                        setLastAgentMsg(prev => ({ ...prev, mahaparv: "I can re-program Looms 1-3 to the wedding design set. Expected revenue increase: ₹1.8L. Execute shift?" }));
+                        setLastAgentMsg(prev => ({ ...prev, mahaparv: "I can re-program Looms 1-3 to the wedding design set. Expected revenue increase: 1.8L. Execute shift?" }));
                       }}
                     >Analyze Demand</button>
                   )}
@@ -977,7 +1447,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
 
                   {mahaparvState === 3 && (
                     <div style={{ marginTop: 'auto', textAlign: 'center', padding: '8px', background: 'rgba(236, 72, 153, 0.2)', borderRadius: '6px', color: '#f472b6', fontWeight: 'bold', fontSize: '0.8rem' }}>
-                      Shift Approved 🌸
+                      Shift Approved
                     </div>
                   )}
                 </div>
@@ -1008,7 +1478,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                       <div className="pulse" style={{ width: '8px', height: '8px', background: '#60a5fa', borderRadius: '50%' }}></div>
                       Waiting for Owner...
                     </>
-                  ) : cottonYarnState === 2 ? 'Material Ordered ✅' : 'Auto-Reorder Material'}
+                  ) : cottonYarnState === 2 ? 'Material Ordered ' : 'Auto-Reorder Material'}
                 </button>
               </div>
 
@@ -1031,7 +1501,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                     <button className="btn-primary" style={{ width: '100%', background: '#3b82f6', border: 'none', color: 'white', fontWeight: 'bold', padding: '8px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', marginTop: 'auto' }}
                       onClick={() => {
                         setTruckState(1);
-                        setLastAgentMsg(prev => ({ ...prev, truck: "I have 200 rolls ready. Negotiating ₹14,500 rate with driver MH-09. Book now?" }));
+                        setLastAgentMsg(prev => ({ ...prev, truck: "I have 200 rolls ready. Negotiating 14,500 rate with driver MH-09. Book now?" }));
                       }}
                     >Contact Driver</button>
                   )}
@@ -1041,8 +1511,8 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                       <button className="btn-primary" style={{ flex: 1, background: '#3b82f6', border: 'none', color: 'white', fontWeight: 'bold', padding: '8px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem' }}
                         onClick={async () => {
                           setTruckState(2);
-                          setLastAgentMsg(prev => ({ ...prev, truck: "Truck Request sent to Owner Terminal. Rate: ₹14,500." }));
-                          const req = await triggerOwnerRequest('LogisticsAI', 'Truck Booking', 'Book empty return-truck MH-09 for Surat delivery at ₹14,500.');
+                          setLastAgentMsg(prev => ({ ...prev, truck: "Truck Request sent to Owner Terminal. Rate: 14,500." }));
+                          const req = await triggerOwnerRequest('LogisticsAI', 'Truck Booking', 'Book empty return-truck MH-09 for Surat delivery at 14,500.');
                           if (req?._id) setActiveRequestIds(prev => ({ ...prev, truck: req._id }));
                         }}
                       >Request Booking</button>
@@ -1059,10 +1529,53 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
 
                   {truckState === 3 && (
                     <div style={{ marginTop: 'auto', textAlign: 'center', padding: '8px', background: 'rgba(59, 130, 246, 0.2)', borderRadius: '6px', color: '#60a5fa', fontWeight: 'bold', fontSize: '0.8rem' }}>
-                      Booking Approved 🚚
+                      Booking Approved
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* NEW: Blockchain Logistics Manifest */}
+              <div className="stat-card" style={{ border: '1px solid rgba(14, 165, 233, 0.3)', background: 'linear-gradient(180deg, rgba(8, 47, 73, 0.6) 0%, rgba(2, 6, 23, 0.9) 100%)', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#0ea5e9', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                    <Box size={14} /> Blockchain Supply Ledger
+                  </div>
+                  <span className="badge" style={{ background: 'rgba(14, 165, 233, 0.15)', color: '#38bdf8', fontSize: '0.65rem', fontWeight: '800', border: '1px solid #0ea5e9' }}>VERIFIED</span>
+                </div>
+                
+                {isSyncingBlockchain ? (
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '15px' }}>
+                    <div className="spin" style={{ width: '40px', height: '40px', border: '3px solid rgba(14, 165, 233, 0.1)', borderTopColor: '#0ea5e9', borderRadius: '50%' }}></div>
+                    <div style={{ fontSize: '0.75rem', color: '#0ea5e9', letterSpacing: '1px' }}>SYNCING LEDGER NODES...</div>
+                  </div>
+                ) : logisticsManifest ? (
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ background: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(14, 165, 233, 0.1)' }}>
+                      <div style={{ fontSize: '0.65rem', color: '#94a3b8', marginBottom: '4px' }}>IMMUTABLE BATCH ID</div>
+                      <div style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>{logisticsManifest.container}</div>
+                      <div style={{ fontSize: '0.6rem', color: '#0ea5e9', marginTop: '4px', fontFamily: 'monospace' }}>HASH: {logisticsManifest.hash}</div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div style={{ fontSize: '0.7rem' }}>
+                        <div style={{ opacity: 0.5 }}>Origin</div>
+                        <div style={{ fontWeight: 'bold' }}>Mundra Port</div>
+                      </div>
+                      <div style={{ fontSize: '0.7rem', textAlign: 'right' }}>
+                        <div style={{ opacity: 0.5 }}>Destination</div>
+                        <div style={{ fontWeight: 'bold' }}>Bursa, Turkey</div>
+                      </div>
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#10b981', padding: '6px', background: 'rgba(16, 185, 129, 0.1)', borderRadius: '4px', textAlign: 'center', border: '1px solid #10b981' }}>
+                      <ShieldCheck size={12} style={{ display: 'inline', marginRight: '4px' }} /> Smart Contract Verified
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', textAlign: 'center' }}>
+                    <p style={{ fontSize: '0.8rem', opacity: 0.6, marginBottom: '1.5rem' }}>Real-time export tracking secured by Solana blockchain nodes.</p>
+                    <button className="btn-primary" style={{ background: '#0ea5e9', border: 'none', color: 'white', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }} onClick={handleLogisticsSync}>Fetch Verified Manifest</button>
+                  </div>
+                )}
               </div>
 
               {/* RESTORED: AI Dead-Stock Liquidator */}
@@ -1073,7 +1586,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                   </div>
                   <span className="badge" style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', fontSize: '0.65rem', fontWeight: '800', border: '1px solid rgba(245, 158, 11, 0.3)' }}>REVENUE</span>
                 </div>
-                <div style={{ fontSize: '1.2rem', fontWeight: '800', color: '#f59e0b', marginBottom: '8px' }}>₹4.5L Trapped Inventory</div>
+                <div style={{ fontSize: '1.2rem', fontWeight: '800', color: '#f59e0b', marginBottom: '8px' }}>4.5L Trapped Inventory</div>
 
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <div style={{ background: 'rgba(245, 158, 11, 0.1)', padding: '10px', borderRadius: '8px', fontSize: '0.8rem', color: '#e2e8f0', borderLeft: '3px solid #f59e0b' }}>
@@ -1084,7 +1597,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                     <button className="btn-primary" style={{ width: '100%', background: '#f59e0b', border: 'none', color: 'black', fontWeight: 'bold', padding: '8px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', marginTop: 'auto' }}
                       onClick={() => {
                         setDeadStockState(1);
-                        setLastAgentMsg(prev => ({ ...prev, deadStock: "I found 3 buyers in Surat interested in this Poly-Cotton batch. Current best bid: ₹4.25L. Accept?" }));
+                        setLastAgentMsg(prev => ({ ...prev, deadStock: "I found 3 buyers in Surat interested in this Poly-Cotton batch. Current best bid: 4.25L. Accept?" }));
                       }}
                     >Find Buyers</button>
                   )}
@@ -1094,8 +1607,8 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                       <button className="btn-primary" style={{ flex: 1, background: '#f59e0b', border: 'none', color: 'black', fontWeight: 'bold', padding: '8px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem' }}
                         onClick={async () => {
                           setDeadStockState(2);
-                          setLastAgentMsg(prev => ({ ...prev, deadStock: "Sent bid of ₹4.25L to Owner Portal for final sign-off." }));
-                          const req = await triggerOwnerRequest('LiquidityAI', 'Stock Liquidation', 'Sell 3,000m rejected Navy Blue stock to Surat buyer for ₹4.25L.');
+                          setLastAgentMsg(prev => ({ ...prev, deadStock: "Sent bid of 4.25L to Owner Portal for final sign-off." }));
+                          const req = await triggerOwnerRequest('LiquidityAI', 'Stock Liquidation', 'Sell 3,000m rejected Navy Blue stock to Surat buyer for 4.25L.');
                           if (req?._id) setActiveRequestIds(prev => ({ ...prev, deadStock: req._id }));
                         }}
                       >Request Sell</button>
@@ -1112,7 +1625,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
 
                   {deadStockState === 3 && (
                     <div style={{ marginTop: 'auto', textAlign: 'center', padding: '8px', background: 'rgba(245, 158, 11, 0.2)', borderRadius: '6px', color: '#f59e0b', fontWeight: 'bold', fontSize: '0.8rem' }}>
-                      Liquidation Approved ✅
+                      Liquidation Approved
                     </div>
                   )}
                 </div>
@@ -1137,7 +1650,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                     <button className="btn-primary" style={{ width: '100%', background: '#eab308', border: 'none', color: 'black', fontWeight: 'bold', padding: '8px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', marginTop: 'auto' }}
                       onClick={() => {
                         setSolarState(1);
-                        setLastAgentMsg(prev => ({ ...prev, solar: "Grid prices are spiking. Shifting 4 high-torque looms to solar grid will save ₹2,400 today. Align?" }));
+                        setLastAgentMsg(prev => ({ ...prev, solar: "Grid prices are spiking. Shifting 4 high-torque looms to solar grid will save 2,400 today. Align?" }));
                       }}
                     >Check Savings</button>
                   )}
@@ -1148,7 +1661,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                         onClick={async () => {
                           setSolarState(2);
                           setLastAgentMsg(prev => ({ ...prev, solar: "Energy shift proposal sent to Owner Command Terminal." }));
-                          const req = await triggerOwnerRequest('EnergyAI', 'Energy Grid Shift', 'Shift high-torque looms (4, 5, 8, 9) to solar grid to save ₹2,400.');
+                          const req = await triggerOwnerRequest('EnergyAI', 'Energy Grid Shift', 'Shift high-torque looms (4, 5, 8, 9) to solar grid to save 2,400.');
                           if (req?._id) setActiveRequestIds(prev => ({ ...prev, solar: req._id }));
                         }}
                       >Request Shift</button>
@@ -1165,7 +1678,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
 
                   {solarState === 3 && (
                     <div style={{ marginTop: 'auto', textAlign: 'center', padding: '8px', background: 'rgba(234, 179, 8, 0.2)', borderRadius: '6px', color: '#eab308', fontWeight: 'bold', fontSize: '0.8rem' }}>
-                      Grid Shift Approved ⚡
+                      Grid Shift Approved
                     </div>
                   )}
                 </div>
@@ -1206,7 +1719,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                 )}
                 {machineHealthState === 2 && (
                   <div style={{ marginTop: '10px', textAlign: 'center', padding: '6px', background: 'rgba(16, 185, 129, 0.2)', borderRadius: '6px', color: '#10b981', fontWeight: 'bold', fontSize: '0.7rem' }}>
-                    Technician Dispatched ✅
+                    Technician Dispatched
                   </div>
                 )}
               </div>
@@ -1325,7 +1838,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                     if (!twilioPhone) return alert("Enter a phone number including country code (e.g., +1234567890)");
                     const msg = "SmartFactory AI Alert: I am your AI Factory Assistant. Core system synchronized. Waiting for your commands.";
                     try {
-                      const res = await fetch('http://localhost:5000/api/whatsapp/send', {
+                      const res = await fetch('/api/whatsapp/send', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ to: twilioPhone.trim(), message: msg })
@@ -1343,7 +1856,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                   disabled={twilioSent}
                   style={{ background: twilioSent ? '#334155' : 'linear-gradient(90deg, #25D366, #128C7E)', color: 'white', border: 'none', borderRadius: '12px', padding: '6px 16px', fontSize: '0.75rem', fontWeight: 'bold', cursor: twilioSent ? 'default' : 'pointer', transition: 'all 0.3s' }}
                 >
-                  {twilioSent ? 'Transmitted ✓' : 'Engage Twilio Relay'}
+                  {twilioSent ? 'Transmitted ' : 'Engage Twilio Relay'}
                 </button>
               </div>
 
@@ -1357,9 +1870,16 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                   <div style={{ fontSize: '0.75rem', color: '#25D366', fontWeight: 'bold', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '5px' }}>
                     <Mic size={12} /> Maha-Connect Voice Assistant
                   </div>
-                  <div style={{ fontSize: '0.9rem', color: '#e9edef', lineHeight: '1.4' }}>
-                    System online. I am monitoring the factory floor. <br /><br />
-                    State your request or use the tactical suggestions below to command the factory.
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ fontSize: '0.9rem', color: '#e9edef', lineHeight: '1.4', flex: 1 }}>
+                      System online. I am monitoring the factory floor. <br /><br />
+                      State your request or use the tactical suggestions below to command the factory.
+                    </div>
+                    <div style={{ display: 'flex', gap: '3px', height: '24px', alignItems: 'center' }}>
+                      {[...Array(4)].map((_, i) => (
+                        <div key={i} className="voice-bar" style={{ width: '3px', background: '#25D366', height: '8px', animationDelay: `${i * 0.2}s` }}></div>
+                      ))}
+                    </div>
                   </div>
                   <div style={{ fontSize: '0.65rem', color: '#8696a0', textAlign: 'right', marginTop: '4px' }}>{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                 </div>
@@ -1370,7 +1890,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                     <div style={{ fontSize: '0.9rem', color: '#e9edef', lineHeight: '1.4' }}>
                       {ownerReply}
                     </div>
-                    <div style={{ fontSize: '0.65rem', color: '#8696a0', textAlign: 'right', marginTop: '4px' }}>{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} <span style={{ color: '#53bdeb', marginLeft: '2px' }}>✓✓</span></div>
+                    <div style={{ fontSize: '0.65rem', color: '#8696a0', textAlign: 'right', marginTop: '4px' }}>{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} <span style={{ color: '#53bdeb', marginLeft: '2px' }}></span></div>
                   </div>
                 )}
 
@@ -1387,9 +1907,9 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                           Transmitting command to Executive Terminal...
                         </div>
                       ) : waStep === 2 ? (
-                        <div style={{ color: '#10b981', fontWeight: 'bold' }}>Command Executed by Owner ✅</div>
+                        <div style={{ color: '#10b981', fontWeight: 'bold' }}>Command Executed by Owner </div>
                       ) : (
-                        <div style={{ color: '#ef4444', fontWeight: 'bold' }}>Command Aborted by Owner ❌</div>
+                        <div style={{ color: '#ef4444', fontWeight: 'bold' }}>Command Aborted by Owner </div>
                       )}
                     </div>
                     {waStep >= 2 && <div style={{ fontSize: '0.65rem', color: '#8696a0', textAlign: 'right', marginTop: '4px' }}>{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>}
@@ -1449,235 +1969,467 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
               )}
             </div>
 
-            {renderAgentGrid(['Core Systems'], 'Core AI & Orchestration')}
+            <AgentGrid categories={['Core Systems']} title="Core AI & Orchestration" focusedAgent={focusedAgent} setFocusedAgent={setFocusedAgent} />
           </div>
         )}
 
+
         {
           activeTab === 'operations' && (
-            <>
-              <div className="stats-grid">
-                <div className="stat-card" style={{ borderLeft: '4px solid var(--primary)' }}>
-                  <div className="stat-header"><span className="stat-label">Predictive Maintenance</span><Activity size={20} color="var(--primary)" /></div>
-                  <div className="stat-value" style={{ color: maintenance.maintenanceProbability?.includes('critical') ? 'var(--danger)' : 'white' }}>
-                    {typeof maintenance.maintenanceProbability === 'object' ? JSON.stringify(maintenance.maintenanceProbability) : maintenance.maintenanceProbability || '0%'}
+            <div className="animate-fade-in" style={{ padding: '0 1rem 2rem', overflowY: 'auto' }}>
+
+              {/* ======================================================================================
+                  PLANT FLOOR HEADER + LIVE STATUS BAR
+              ====================================================================================== */}
+              <div style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: '16px', padding: '1.5rem', marginBottom: '1.5rem', position: 'relative', overflow: 'hidden' }}>
+                <div style={{ position: 'absolute', inset: 0, background: 'repeating-linear-gradient(45deg, transparent, transparent 40px, rgba(99,102,241,0.02) 40px, rgba(99,102,241,0.02) 80px)', pointerEvents: 'none' }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}>
+                      <div style={{ width: '10px', height: '10px', background: '#10b981', borderRadius: '50%', boxShadow: '0 0 10px #10b981', animation: 'pulse 1.5s infinite' }} />
+                      <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '900', letterSpacing: '2px', textTransform: 'uppercase', color: 'white' }}>Plant Floor Command</h2>
+                      <span style={{ background: 'rgba(99,102,241,0.2)', border: '1px solid #6366f1', color: '#a5b4fc', fontSize: '0.6rem', padding: '2px 8px', borderRadius: '4px', letterSpacing: '1px', fontWeight: 'bold' }}>BHILWARA {'\u2014'} UNIT 1</span>
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#94a3b8', letterSpacing: '1px' }}>52 AI AGENTS ACTIVE {'\u2014'} REAL-TIME TELEMETRY SYNC {'\u2014'} EDGE NODE 4 ONLINE</div>
                   </div>
-                  <div className="stat-label">{typeof maintenance.status === 'object' ? JSON.stringify(maintenance.status) : maintenance.status || 'Optimizing...'}</div>
-                </div>
-                <div className="stat-card" style={{ borderLeft: '4px solid #f59e0b', background: 'linear-gradient(rgba(245, 158, 11, 0.05), transparent)' }}>
-                  <div className="stat-header"><span className="stat-label">Bhilwara Grid Predictor</span><Zap size={20} color="#f59e0b" /></div>
-                  <div className="stat-value" style={{ color: '#f59e0b', fontSize: '1.5rem' }}>Cut Warning: 2 PM</div>
-                  <div className="stat-label font-bold text-red-400">Action: Pre-heat DG Sets</div>
-                  <button
-                    className="btn-primary"
-                    style={{ width: '100%', marginTop: '1rem', background: '#f59e0b', fontSize: '0.75rem', padding: '0.5rem', border: 'none', color: 'black', fontWeight: 'bold', cursor: 'pointer', borderRadius: '4px' }}
-                    onClick={() => alert('Generators Synced. Loom downtime prevented during load shedding.')}
-                  >
-                    <Cpu size={14} style={{ display: 'inline', marginRight: '4px' }} /> Auto-Sync Generators
-                  </button>
-                </div>
-                <div className="stat-card" style={{ borderLeft: '4px solid var(--accent)' }}>
-                  <div className="stat-header"><span className="stat-label">Active Loom Count</span><LayoutDashboard size={20} color="var(--accent)" /></div>
-                  <div className="stat-value">18 / 20</div>
-                  <div className="stat-label">2 Looms in Cycle-Maint</div>
-                </div>
-                <div className="stat-card" style={{ borderLeft: '4px solid #f97316' }}>
-                  <div className="stat-header"><span className="stat-label">AI Fatigue Predictor</span><Users size={20} color="#f97316" /></div>
-                  <div className="stat-value" style={{ color: '#f97316' }}>High Risk</div>
-                  <div className="stat-label">Shift B (Weavers)</div>
-                  <button
-                    className="btn-primary"
-                    style={{ width: '100%', marginTop: '1rem', background: '#f97316', fontSize: '0.75rem', padding: '0.5rem', border: 'none', color: 'white', cursor: 'pointer', borderRadius: '4px' }}
-                    onClick={() => {
-                      alert('Shift Rotation Optimized! Relief workers assigned to Sector 4.');
-                      setSafety(prev => ({ ...prev, ppeCompliance: 100 }));
-                    }}
-                  >
-                    Optimize Shift Rotation
-                  </button>
+                  <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+                    {[
+                      { label: 'LOOMS ACTIVE', value: '18/20', color: '#10b981' },
+                      { label: 'OEE', value: '87.4%', color: '#6366f1' },
+                      { label: 'DEFECT RATE', value: '0.8%', color: '#f59e0b' },
+                      { label: 'ENERGY', value: '42kW', color: '#0ea5e9' },
+                    ].map(s => (
+                      <div key={s.label} style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '1.4rem', fontWeight: '900', color: s.color, lineHeight: 1 }}>{s.value}</div>
+                        <div style={{ fontSize: '0.55rem', color: '#64748b', letterSpacing: '1px', marginTop: '2px' }}>{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
 
-              {/* RESTORED: Voice-Assisted Operator Panel */}
-              <div className="stat-card" style={{ marginTop: '1.5rem', background: 'linear-gradient(90deg, rgba(59, 130, 246, 0.05) 0%, transparent 100%)', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ flex: 1, paddingRight: '20px' }}>
-                    <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#60a5fa', margin: '0 0 10px 0' }}><Mic size={20} /> Voice-Assisted Operator Panel (Hindi/Marwari)</h3>
-                    <p style={{ opacity: 0.8, fontSize: '0.9rem', margin: 0 }}>Designed for shop-floor workers. No typing required. Just tap and speak to log downtime or request maintenance.</p>
+              {/* ======================================================================================
+                  LIVE LOOM MAP - Animated Factory Floor Bird's Eye View
+              ====================================================================================== */}
+              <div style={{ background: '#0a0f1e', border: '1px solid rgba(99,102,241,0.2)', borderRadius: '16px', padding: '1.5rem', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                  <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', color: '#a5b4fc', fontSize: '0.9rem', letterSpacing: '2px', textTransform: 'uppercase' }}>
+                    <Factory size={18} /> Live Loom Floor Map \u2014 Section A & B
+                  </h3>
+                  <div style={{ display: 'flex', gap: '12px', fontSize: '0.6rem', color: '#64748b' }}>
+                    {[['#10b981','RUNNING'],['#f59e0b','MAINTENANCE'],['#ef4444','ALERT'],['#334155','IDLE']].map(([c,l]) => (
+                      <span key={l} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ width: '8px', height: '8px', borderRadius: '2px', background: c, display: 'inline-block' }} />{l}
+                      </span>
+                    ))}
                   </div>
-                  <button className="btn-primary" style={{ background: '#3b82f6', color: 'white', border: 'none', padding: '15px 30px', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', boxShadow: '0 4px 15px rgba(59, 130, 246, 0.4)' }}>
-                    <Mic size={18} /> Hold to Speak
-                  </button>
                 </div>
-              </div>
-
-              <div className="charts-grid" style={{ marginTop: '1.5rem' }}>
-                <div className="chart-container">
-                  <h3 className="section-title">Live System Events Log</h3>
-                  <div style={{ maxHeight: '250px', overflowY: 'auto', paddingRight: '10px' }}>
-                    {systemEvents.map(ev => (
-                      <div key={typeof ev.id === 'object' ? JSON.stringify(ev.id) : ev.id} style={{ display: 'flex', gap: '1rem', padding: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.8rem' }}>
-                        <span style={{ color: 'var(--text-muted)', fontWeight: '600', minWidth: '60px' }}>{typeof ev.time === 'object' ? JSON.stringify(ev.time) : ev.time}</span>
-                        <span style={{
-                          color: ev.type === 'danger' ? 'var(--danger)' :
-                            ev.type === 'warning' ? '#f59e0b' :
-                              ev.type === 'success' ? 'var(--accent)' : 'white',
-                          fontWeight: ev.type === 'danger' || ev.type === 'warning' ? '700' : '400'
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: '6px', marginBottom: '8px' }}>
+                  {Array.isArray(machineStatus) && machineStatus.length > 0
+                    ? machineStatus.map((m, i) => (
+                        <div key={m.id} title={`${m.name} | Temp: ${m.temp}\u00B0C | RPM: ${m.rpm} | ${m.status}`} style={{
+                          height: '42px', borderRadius: '6px', cursor: 'pointer',
+                          background: m.status === 'Running' ? (m.temp > 85 ? 'rgba(239,68,68,0.4)' : 'rgba(16,185,129,0.25)') : m.status === 'Maintenance' ? 'rgba(245,158,11,0.25)' : 'rgba(30,41,59,0.8)',
+                          border: `1px solid ${m.status === 'Running' ? (m.temp > 85 ? '#ef4444' : '#10b981') : m.status === 'Maintenance' ? '#f59e0b' : '#1e293b'}`,
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                          fontSize: '0.55rem', color: '#94a3b8', transition: 'all 0.3s',
+                          boxShadow: m.status === 'Running' ? `0 0 8px ${m.temp > 85 ? 'rgba(239,68,68,0.3)' : 'rgba(16,185,129,0.2)'}` : 'none',
+                          position: 'relative', overflow: 'hidden'
                         }}>
-                          {typeof ev.msg === 'object' ? JSON.stringify(ev.msg) : ev.msg}
+                          {m.status === 'Running' && <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '2px', background: `linear-gradient(90deg, transparent, ${m.temp > 85 ? '#ef4444' : '#10b981'}, transparent)`, animation: 'scan 2s infinite' }} />}
+                          <span style={{ fontWeight: '700', color: 'white', fontSize: '0.6rem' }}>{m.name?.replace('Loom ', 'L').replace(' Machine', '')}</span>
+                          <span style={{ color: m.temp > 85 ? '#ef4444' : '#10b981', fontSize: '0.55rem' }}>{m.temp}\u00B0C</span>
+                        </div>
+                      ))
+                    : [...Array(20)].map((_, i) => {
+                        const statuses = ['Running','Running','Running','Running','Running','Running','Running','Running','Running','Running','Running','Running','Running','Running','Running','Running','Running','Maintenance','Running','Alert'];
+                        const st = statuses[i];
+                        const temp = Math.floor(Math.random() * 30) + 55;
+                        return (
+                          <div key={i} title={`Loom ${i+1}`} style={{
+                            height: '42px', borderRadius: '6px', cursor: 'pointer',
+                            background: st === 'Running' ? 'rgba(16,185,129,0.25)' : st === 'Maintenance' ? 'rgba(245,158,11,0.25)' : 'rgba(239,68,68,0.25)',
+                            border: `1px solid ${st === 'Running' ? '#10b981' : st === 'Maintenance' ? '#f59e0b' : '#ef4444'}`,
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                            fontSize: '0.55rem', color: '#94a3b8',
+                            boxShadow: st === 'Running' ? '0 0 8px rgba(16,185,129,0.2)' : 'none',
+                            position: 'relative', overflow: 'hidden'
+                          }}>
+                            {st === 'Running' && <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '2px', background: 'linear-gradient(90deg, transparent, #10b981, transparent)', animation: 'scan 2s infinite' }} />}
+                            <span style={{ fontWeight: '700', color: 'white', fontSize: '0.6rem' }}>L-{i+1}</span>
+                            <span style={{ color: '#10b981', fontSize: '0.55rem' }}>{temp}\u00B0C</span>
+                          </div>
+                        );
+                      })
+                  }
+                </div>
+                <div style={{ fontSize: '0.65rem', color: '#475569', textAlign: 'center', letterSpacing: '1px' }}>HOVER LOOM FOR TELEMETRY &#x2014; CLICK TO DISPATCH MAINTENANCE</div>
+              </div>
+
+              {/* ======================================================================================
+                  REAL-TIME TELEMETRY GAUGES + QUICK STATS
+              ====================================================================================== */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+                {[
+                  { label: 'Loom Vibration', value: machineVibration, max: 120, unit: 'Hz', warn: 80, color: '#6366f1', icon: Activity },
+                  { label: 'Avg Temp', value: 68, max: 110, unit: '\u00B0C', warn: 85, color: '#f59e0b', icon: Thermometer },
+                  { label: 'Production Speed', value: 87, max: 100, unit: '%', warn: 50, color: '#10b981', icon: TrendingUp },
+                  { label: 'Grid Power Draw', value: 42, max: 80, unit: 'kW', warn: 65, color: '#0ea5e9', icon: Zap },
+                  { label: 'Yarn Tension', value: 3.2, max: 6, unit: 'N/m', warn: 4.5, color: '#a855f7', icon: Layers },
+                  { label: 'Safety Score', value: renderSafeValue(safety.ppeCompliance, 95), max: 100, unit: '%', warn: 80, color: '#ef4444', icon: ShieldCheck },
+                ].map(({ label, value, max, unit, warn, color, icon: Icon }) => {
+                  const numVal = parseFloat(value) || 0;
+                  const pct = Math.min((numVal / max) * 100, 100);
+                  const isWarn = numVal >= warn;
+                  return (
+                    <div key={label} style={{ background: '#0d1117', border: `1px solid ${isWarn ? color + '66' : 'rgba(255,255,255,0.05)'}`, borderRadius: '12px', padding: '1rem', transition: 'all 0.3s', boxShadow: isWarn ? `0 0 20px ${color}22` : 'none' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '0.65rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px' }}>{label}</span>
+                        <Icon size={14} color={color} />
+                      </div>
+                      <div style={{ fontSize: '1.6rem', fontWeight: '900', color: isWarn ? color : 'white', lineHeight: 1 }}>
+                        {numVal}<span style={{ fontSize: '0.7rem', color: '#64748b', marginLeft: '2px' }}>{unit}</span>
+                      </div>
+                      <div style={{ height: '4px', background: 'rgba(255,255,255,0.05)', borderRadius: '2px', marginTop: '10px' }}>
+                        <div style={{ height: '100%', width: `${pct}%`, background: isWarn ? `linear-gradient(90deg, ${color}, #fff)` : color, borderRadius: '2px', transition: 'width 1s ease', boxShadow: isWarn ? `0 0 6px ${color}` : 'none' }} />
+                      </div>
+                      {isWarn && <div style={{ fontSize: '0.55rem', color, marginTop: '4px', fontWeight: 'bold', letterSpacing: '1px' }}>\u26A0 HIGH {'\u2014'} ACTION RECOMMENDED</div>}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* ======================================================================================
+                  MACHINE LOOM VIBRATION SLIDER + LIVE AI RESPONSE
+              ===================================================================================== */}
+              <div style={{ background: '#0d1117', border: '1px solid rgba(99,102,241,0.2)', borderRadius: '16px', padding: '1.5rem', marginBottom: '1.5rem' }}>
+                <h3 style={{ margin: '0 0 1rem', fontSize: '0.85rem', letterSpacing: '2px', textTransform: 'uppercase', color: '#a5b4fc', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Activity size={16} /> Loom Vibration Frequency Controller (Live AI Feedback)
+                </h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: '200px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '0.7rem', color: '#64748b' }}>0 Hz</span>
+                      <span style={{ fontSize: '1.1rem', fontWeight: '900', color: machineVibration > 80 ? '#ef4444' : machineVibration > 60 ? '#f59e0b' : '#10b981' }}>{machineVibration} Hz</span>
+                      <span style={{ fontSize: '0.7rem', color: '#64748b' }}>120 Hz</span>
+                    </div>
+                    <input type="range" min="0" max="120" value={machineVibration}
+                      onChange={e => {
+                        setMachineVibration(parseInt(e.target.value));
+                        if (parseInt(e.target.value) > 80) setTicketGenerated(false);
+                      }}
+                      style={{ width: '100%', accentColor: machineVibration > 80 ? '#ef4444' : machineVibration > 60 ? '#f59e0b' : '#10b981', cursor: 'pointer' }}
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', fontSize: '0.55rem', color: '#334155' }}>
+                      <span>NORMAL</span><span>CAUTION</span><span>CRITICAL</span>
+                    </div>
+                  </div>
+                  <div style={{ flex: 1, minWidth: '200px', background: machineVibration > 80 ? 'rgba(239,68,68,0.08)' : 'rgba(16,185,129,0.08)', border: `1px solid ${machineVibration > 80 ? 'rgba(239,68,68,0.3)' : 'rgba(16,185,129,0.2)'}`, borderRadius: '12px', padding: '1rem' }}>
+                    <div style={{ fontSize: '0.65rem', color: '#64748b', letterSpacing: '1px', marginBottom: '4px' }}>AI DIAGNOSIS {'\u2014'} LOOM 7</div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: '600', color: machineVibration > 80 ? '#ef4444' : '#10b981' }}>
+                      {machineVibration > 80 ? '\u26A0 CRITICAL: Bearing wear detected. Lubrication failure likely.' : machineVibration > 60 ? '\u26A1 CAUTION: Elevated vibration. Monitor tension settings.' : '\u2713 NOMINAL: All mechanical parameters within spec.'}
+                    </div>
+                    {machineVibration > 80 && (
+                      <button onClick={() => { setTicketGenerated(true); setSystemEvents(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString(), msg: `Maintenance AI: Emergency ticket raised for Loom 7 (Vib: ${machineVibration}Hz). Technician dispatched.`, type: 'warning' }, ...prev]); triggerOwnerRequest('MaintenanceAI', 'Emergency Bearing Repair', `Loom 7 vibration at ${machineVibration}Hz. Bearing failure imminent.`); }}
+                        style={{ marginTop: '10px', background: ticketGenerated ? '#10b981' : '#ef4444', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 'bold', cursor: ticketGenerated ? 'default' : 'pointer', width: '100%' }}>
+                        {ticketGenerated ? '\u2713 MAINTENANCE TICKET RAISED' : 'RAISE EMERGENCY TICKET \u2192'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* —————————————————————————————————————————————————————————————————————————————————————
+                  TWIN PANEL: COMPUTER VISION + LIVE AI CONSOLE
+              ————————————————————————————————————————————————————————————————————————————————————— */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+
+                {/* Computer Vision Camera */}
+                <div style={{ background: 'linear-gradient(135deg, rgba(139,92,246,0.1) 0%, rgba(0,0,0,0) 100%)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: '16px', padding: '1.25rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                    <h3 style={{ margin: 0, fontSize: '0.8rem', letterSpacing: '2px', textTransform: 'uppercase', color: '#a78bfa', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Video size={16} /> CV Defect Detection
+                    </h3>
+                    <button onClick={toggleCamera} style={{ background: isCameraActive ? '#ef4444' : '#7c3aed', color: 'white', border: 'none', padding: '5px 12px', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Video size={11} /> {isCameraActive ? 'STOP' : 'ACTIVATE'}
+                    </button>
+                  </div>
+                  <div style={{ width: '100%', height: '200px', background: '#000', borderRadius: '10px', position: 'relative', overflow: 'hidden', border: '1px solid rgba(139,92,246,0.2)' }}>
+                    {/* Live camera video */}
+                    <video ref={videoRef} autoPlay playsInline muted onPlaying={() => setIsStreamReady(true)}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, left: 0, opacity: (isCameraActive && isStreamReady) ? 1 : 0, zIndex: 5, transition: 'opacity 0.5s' }} />
+                    <canvas ref={canvasRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 10, pointerEvents: 'none', display: (isCameraActive && isStreamReady) ? 'block' : 'none' }} />
+                    {/* Simulated loom texture background */}
+                    <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(45deg, #0a0a0a 25%, #1a1a2e 50%, #0a0a0a 75%)', backgroundSize: '4px 4px', opacity: (!isCameraActive || !isStreamReady) ? 1 : 0, zIndex: 2, transition: 'opacity 0.5s' }}>
+                      {/* Grid lines simulating fabric */}
+                      <div style={{ position: 'absolute', inset: 0, backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 8px, rgba(99,102,241,0.08) 8px, rgba(99,102,241,0.08) 9px), repeating-linear-gradient(90deg, transparent, transparent 8px, rgba(99,102,241,0.08) 8px, rgba(99,102,241,0.08) 9px)' }} />
+                    </div>
+                    {/* Scanner line always visible */}
+                    <div style={{ position: 'absolute', top: 0, left: 0, width: '3px', height: '100%', background: 'linear-gradient(180deg, transparent, #8b5cf6, transparent)', boxShadow: '0 0 12px #8b5cf6', animation: 'scan 3s infinite linear', zIndex: 15 }} />
+                    {/* Dynamic defect markers */}
+                    <div style={{ position: 'absolute', top: cvDefect.top, left: cvDefect.left, border: `2px solid ${cvDefect.color}`, width: '50px', height: '50px', backgroundColor: `${cvDefect.color}22`, transition: 'all 0.8s cubic-bezier(0.4,0,0.2,1)', boxShadow: `0 0 15px ${cvDefect.color}66`, zIndex: 20 }}>
+                      <div style={{ background: cvDefect.color, color: 'white', fontSize: '0.5rem', padding: '1px 4px', fontWeight: 'bold', position: 'absolute', top: '-18px', left: '-2px', whiteSpace: 'nowrap', borderRadius: '2px' }}>{cvDefect.label}</div>
+                      <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '4px', height: '4px', background: cvDefect.color, borderRadius: '50%', boxShadow: `0 0 8px ${cvDefect.color}` }} />
+                    </div>
+                    {/* Top-left model badge */}
+                    <div style={{ position: 'absolute', top: '8px', left: '8px', background: 'rgba(0,0,0,0.7)', border: '1px solid rgba(139,92,246,0.4)', borderRadius: '4px', padding: '2px 8px', fontSize: '0.55rem', color: '#a78bfa', fontWeight: 'bold', zIndex: 25, letterSpacing: '1px' }}>YOLOv8 ACTIVE</div>
+                    {/* REC badge */}
+                    <div style={{ position: 'absolute', top: '8px', right: '8px', display: 'flex', alignItems: 'center', gap: '5px', background: 'rgba(0,0,0,0.7)', padding: '3px 8px', borderRadius: '4px', zIndex: 25 }}>
+                      <div style={{ width: '6px', height: '6px', background: '#ef4444', borderRadius: '50%', animation: 'pulse 1s infinite' }} />
+                      <span style={{ fontSize: '0.55rem', color: 'white', fontWeight: 'bold', letterSpacing: '1px' }}>{isCameraActive ? 'LIVE' : 'SIM'}</span>
+                    </div>
+                    {cameraError && <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444', fontSize: '0.75rem', fontWeight: 'bold', textAlign: 'center', padding: '1rem', zIndex: 30 }}>{cameraError}<br/><span style={{ color: '#64748b', fontSize: '0.65rem', marginTop: '4px', display: 'block' }}>Simulated feed active</span></div>}
+                  </div>
+                  {/* Defect Stats */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '6px', marginTop: '10px' }}>
+                    {[['DEFECTS/HR', '3'], ['CONFIDENCE', '97.2%'], ['FPS', '24']].map(([l,v]) => (
+                      <div key={l} style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(139,92,246,0.15)', borderRadius: '6px', padding: '6px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '0.95rem', fontWeight: '800', color: '#a78bfa' }}>{v}</div>
+                        <div style={{ fontSize: '0.5rem', color: '#475569', letterSpacing: '1px' }}>{l}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Live AI System Console */}
+                <div style={{ background: '#030712', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '16px', padding: '1.25rem', fontFamily: 'monospace' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <h3 style={{ margin: 0, fontSize: '0.8rem', letterSpacing: '2px', color: '#10b981', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Cpu size={14} /> AI System Console
+                    </h3>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      {['#ef4444','#f59e0b','#10b981'].map(c => <div key={c} style={{ width: '8px', height: '8px', borderRadius: '50%', background: c }} />)}
+                    </div>
+                  </div>
+                  <div style={{ maxHeight: '230px', overflowY: 'auto', fontSize: '0.65rem', lineHeight: '1.8' }}>
+                    {Array.isArray(systemEvents) && systemEvents.map(ev => (
+                      <div key={ev.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', paddingBottom: '3px', marginBottom: '3px', display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                        <span style={{ color: '#334155', minWidth: '55px', flexShrink: 0 }}>[{ev.time}]</span>
+                        <span style={{ color: ev.type === 'danger' ? '#ef4444' : ev.type === 'warning' ? '#f59e0b' : ev.type === 'success' ? '#10b981' : '#a5b4fc' }}>
+                          {ev.type === 'danger' ? '\u2716 ' : ev.type === 'warning' ? '\u26A0 ' : ev.type === 'success' ? '\u2714 ' : '\u203A '}{ev.msg}
                         </span>
                       </div>
                     ))}
                   </div>
-                  <button className="btn-primary" style={{ width: '100%', marginTop: '1rem', background: 'rgba(255,255,255,0.05)', fontSize: '0.75rem', padding: '0.5rem' }}>
-                    View Full Audit Log
+                </div>
+              </div>
+
+              {/* —————————————————————————————————————————————————————————————————————————————————————
+                  AI ACTION COMMAND PANELS
+              ————————————————————————————————————————————————————————————————————————————————————— */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+
+                {/* 1. Voice-Assisted Panel */}
+                <div style={{ background: 'linear-gradient(135deg, rgba(59,130,246,0.08) 0%, transparent 100%)', border: `1px solid ${isVoiceActive ? '#3b82f6' : 'rgba(59,130,246,0.2)'}`, borderRadius: '14px', padding: '1.25rem', transition: 'all 0.3s', boxShadow: isVoiceActive ? '0 0 30px rgba(59,130,246,0.2)' : 'none' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                    <div>
+                      <div style={{ fontSize: '0.65rem', color: '#60a5fa', fontWeight: 'bold', letterSpacing: '1px', marginBottom: '4px' }}>VOICE AI {'\u2014'} HINDI/MARWARI</div>
+                      <h4 style={{ margin: 0, color: 'white', fontSize: '0.95rem' }}>Karigar Voice Log</h4>
+                    </div>
+                    <Mic size={20} color="#3b82f6" />
+                  </div>
+                  <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '0 0 1rem', lineHeight: '1.5' }}>
+                    Shop-floor workers tap and speak in Hindi/Marwari to log downtime, thread breaks, or request maintenance {'\u2014'} no typing required.
+                  </p>
+                  {isVoiceActive && (
+                    <div style={{ display: 'flex', gap: '3px', height: '30px', alignItems: 'flex-end', marginBottom: '10px' }}>
+                      {[...Array(12)].map((_,i) => (
+                        <div key={i} style={{ flex: 1, background: '#3b82f6', borderRadius: '2px', animation: `pulse ${0.3 + i * 0.07}s infinite alternate`, height: `${20 + Math.random() * 80}%`, opacity: 0.7+i/20 }} />
+                      ))}
+                    </div>
+                  )}
+                  <button onClick={handleVoiceAction} disabled={isVoiceActive} style={{ width: '100%', background: isVoiceActive ? '#1d4ed8' : '#3b82f6', color: 'white', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: isVoiceActive ? 'default' : 'pointer', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: isVoiceActive ? '0 0 15px rgba(59,130,246,0.4)' : 'none', transition: 'all 0.3s' }}>
+                    <Mic size={15} /> {voiceStep === 0 ? '\uD83C\uDFA4 Tap to Log (Hindi/Marwari)' : voiceStep === 1 ? '\uD83D\uDD34 LISTENING...' : voiceStep === 2 ? '\u26A1 TRANSCRIBING...' : '\u2713 LOGGED TO SYSTEM'}
                   </button>
                 </div>
-                <div className="stat-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', background: 'linear-gradient(rgba(16, 185, 129, 0.1), transparent)' }}>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--accent)', marginBottom: '0.5rem' }}>SAFETY PULSE</div>
-                    <div style={{ fontSize: '3rem', fontWeight: '900', color: '#10b981' }}>{typeof safety.accidentFreeRecord === 'object' ? JSON.stringify(safety.accidentFreeRecord) : safety.accidentFreeRecord || '120'}</div>
-                    <div style={{ fontSize: '0.9rem', fontWeight: '600' }}>Accident-Free Days</div>
-                    <div className="learning-dot active" style={{ margin: '1rem auto' }}></div>
-                    <p style={{ fontSize: '0.7rem', opacity: 0.6 }}>Top 1% National Excellence</p>
+
+                {/* 2. Digital Twin */}
+                <div style={{ background: 'linear-gradient(135deg, rgba(168,85,247,0.08) 0%, transparent 100%)', border: `1px solid ${isTwinLoading ? '#a855f7' : 'rgba(168,85,247,0.2)'}`, borderRadius: '14px', padding: '1.25rem', boxShadow: isTwinLoading ? '0 0 30px rgba(168,85,247,0.2)' : 'none', transition: 'all 0.3s' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                    <div>
+                      <div style={{ fontSize: '0.65rem', color: '#c084fc', fontWeight: 'bold', letterSpacing: '1px', marginBottom: '4px' }}>SPATIAL AI {'\u2014'} 3D HEATWAVE</div>
+                      <h4 style={{ margin: 0, color: 'white', fontSize: '0.95rem' }}>Holographic Digital Twin</h4>
+                    </div>
+                    <Box size={20} color="#a855f7" />
                   </div>
+                  <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '0 0 1rem', lineHeight: '1.5' }}>
+                    Projects a spatial mesh of the factory floor. Red zones = high mechanical resonance. Detects micro-fractures before failures occur.
+                  </p>
+                  {isTwinLoading && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: '3px', marginBottom: '10px' }}>
+                      {[...Array(20)].map((_,i) => {
+                        const heat = Math.random();
+                        return <div key={i} style={{ height: '12px', borderRadius: '2px', background: heat > 0.7 ? '#ef4444' : heat > 0.4 ? '#f59e0b' : '#10b981', opacity: 0.6 + heat * 0.4, animation: `pulse ${0.5+Math.random()}s infinite` }} />;
+                      })}
+                    </div>
+                  )}
+                  <button onClick={() => { if (isTwinLoading) return; setIsTwinLoading(true); setSystemEvents(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString(), msg: 'Digital Twin: Loading spatial mesh. Heatwave layers active...', type: 'info' }, ...prev]); setTimeout(() => { setIsTwinLoading(false); setShowTwinModal(true); setSystemEvents(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString(), msg: 'Digital Twin: Loom 7 \u2014 High resonance at bearing housing. Schedule inspection.', type: 'warning' }, ...prev]); }, 5000); }} style={{ width: '100%', background: isTwinLoading ? '#7c3aed' : 'linear-gradient(90deg, #a855f7, #8b5cf6)', color: 'white', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: isTwinLoading ? 'default' : 'pointer', fontSize: '0.8rem', transition: 'all 0.3s' }}>
+                    {isTwinLoading ? '\u26A1 LOADING SPATIAL MESH...' : '\uD83D\uDCE1 Load 3D Spatial Twin'}
+                  </button>
+                </div>
+
+                {/* 3. Omni Orchestrator */}
+                <div style={{ background: 'linear-gradient(135deg, rgba(59,130,246,0.08) 0%, transparent 100%)', border: `1px solid ${isOrchestrating ? '#3b82f6' : 'rgba(59,130,246,0.2)'}`, borderRadius: '14px', padding: '1.25rem', position: 'relative', overflow: 'hidden', boxShadow: isOrchestrating ? '0 0 30px rgba(59,130,246,0.2)' : 'none', transition: 'all 0.3s' }}>
+                  {isOrchestrating && microAdjustments.map(ma => (
+                    <div key={ma.id} style={{ position: 'absolute', top: ma.top, left: ma.left, background: '#3b82f6', color: 'white', fontSize: '0.5rem', padding: '2px 5px', borderRadius: '3px', fontWeight: 'bold', pointerEvents: 'none', animation: 'fadeIn 0.3s ease', zIndex: 5 }}>{ma.text}</div>
+                  ))}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                    <div>
+                       <div style={{ fontSize: '0.65rem', color: '#60a5fa', fontWeight: 'bold', letterSpacing: '1px', marginBottom: '4px' }}>QUANTUM SWARM {'\u2014'} 28 AGENTS</div>
+                      <h4 style={{ margin: 0, color: 'white', fontSize: '0.95rem' }}>Omni-Orchestrator</h4>
+                    </div>
+                    <Network size={20} color="#3b82f6" />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Global Optimum</span>
+                    <span style={{ fontSize: '0.85rem', fontWeight: '800', color: '#10b981' }}>99.98%</span>
+                  </div>
+                  <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '0 0 1rem', lineHeight: '1.5' }}>
+                    Micro-adjusts all 28 looms 100\u00D7/sec simultaneously {'\u2014'} balancing Speed vs Energy vs Quality in real-time.
+                  </p>
+                  <button onClick={() => { if (isOrchestrating) return; setIsOrchestrating(true); setSystemEvents(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString(), msg: 'Quantum-Swarm: Engaging Universal Orchestration across Cluster B...', type: 'info' }, ...prev]); const adj = setInterval(() => { const labels = ['SPD +0.2%','TEN -1.5g','LUB ON','VOLT ADJ','SYNC OK','RPM +3','TMP OK']; setMicroAdjustments(prev => [...prev, { id: Date.now(), text: labels[Math.floor(Math.random()*labels.length)], top: `${Math.random()*70}%`, left: `${Math.random()*70}%` }].slice(-6)); }, 600); setTimeout(() => { clearInterval(adj); setIsOrchestrating(false); setMicroAdjustments([]); setSystemEvents(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString(), msg: 'Quantum-Swarm: Global Optimum achieved. All looms synchronized.', type: 'success' }, ...prev]); }, 6000); }} style={{ width: '100%', background: isOrchestrating ? '#1e3a5f' : 'linear-gradient(90deg, #3b82f6, #6366f1)', color: 'white', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: isOrchestrating ? 'default' : 'pointer', fontSize: '0.8rem', transition: 'all 0.3s' }}>
+                    {isOrchestrating ? '\u26A1 OPTIMIZING ALL LOOMS...' : '\uD83D\uDD17 Engage Universal Orchestration'}
+                  </button>
+                </div>
+
+                {/* 4. Karigar Skill Atlas */}
+                <div style={{ background: 'linear-gradient(135deg, rgba(139,92,246,0.08) 0%, transparent 100%)', border: `1px solid ${karigarAssigned ? 'rgba(16,185,129,0.4)' : 'rgba(139,92,246,0.2)'}`, borderRadius: '14px', padding: '1.25rem', transition: 'all 0.3s' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                    <div>
+                      <div style={{ fontSize: '0.65rem', color: '#a78bfa', fontWeight: 'bold', letterSpacing: '1px', marginBottom: '4px' }}>ML {'\u2014'} SKILL MAPPING</div>
+                      <h4 style={{ margin: 0, color: 'white', fontSize: '0.95rem' }}>Karigar Skill-Atlas</h4>
+                    </div>
+                    <Users size={20} color="#8b5cf6" />
+                  </div>
+                  <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '0 0 10px', lineHeight: '1.5' }}>
+                    Maps each weaver's output quality against specific loom types and yarn batches. Assigns the optimal Karigar to minimize loom stoppage.
+                  </p>
+                  {karigarAssigned && (
+                    <div style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '8px', padding: '8px 12px', marginBottom: '10px', fontSize: '0.75rem', color: '#10b981' }}>
+                      \u2713 Ramesh K. \u2192 Loom 14 (Suiting Batch-92) | Skill Match: 96%
+                    </div>
+                  )}
+                  <button onClick={() => { if (karigarAssigned) return; setKarigarAssigned(true); setSystemEvents(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString(), msg: "Karigar ML: Ramesh K. matched to Loom 14 for Suiting Batch-92 (96% skill match).", type: 'success' }, ...prev]); }} style={{ width: '100%', background: karigarAssigned ? '#065f46' : '#7c3aed', color: 'white', border: `1px solid ${karigarAssigned ? '#10b981' : 'transparent'}`, padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: karigarAssigned ? 'default' : 'pointer', fontSize: '0.8rem', transition: 'all 0.3s' }}>
+                    {karigarAssigned ? '\u2713 KARIGAR ASSIGNED \u2014 LOOM 14' : '\uD83E\uDDE0 Assign Best Karigar'}
+                  </button>
+                </div>
+
+                {/* 5. Grid Predictor */}
+                <div style={{ background: 'linear-gradient(135deg, rgba(245,158,11,0.08) 0%, transparent 100%)', border: `1px solid ${isSyncingGenerators ? '#f59e0b' : 'rgba(245,158,11,0.2)'}`, borderRadius: '14px', padding: '1.25rem', transition: 'all 0.3s' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                    <div>
+                      <div style={{ fontSize: '0.65rem', color: '#fbbf24', fontWeight: 'bold', letterSpacing: '1px', marginBottom: '4px' }}>BHILWARA GRID {'\u2014'} DISCOM AI</div>
+                      <h4 style={{ margin: 0, color: 'white', fontSize: '0.95rem' }}>Grid Power Predictor</h4>
+                    </div>
+                    <Zap size={20} color="#f59e0b" />
+                  </div>
+                  <div style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '8px', padding: '8px 12px', marginBottom: '10px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                      <span style={{ color: '#fbbf24', fontWeight: 'bold' }}>\u26A1 Grid Cut Predicted: 2:00 PM</span>
+                      <span style={{ color: '#64748b' }}>Confidence: 89%</span>
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '4px' }}>Action: Pre-heat DG Sets by 1:45 PM</div>
+                  </div>
+                  <button onClick={() => { if (isSyncingGenerators) return; setIsSyncingGenerators(true); setSystemEvents(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString(), msg: 'Bhilwara Grid AI: Syncing DG Sets with main metering. ETA 4s.', type: 'warning' }, ...prev]); setTimeout(() => { setIsSyncingGenerators(false); setSystemEvents(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString(), msg: 'Bhilwara Grid: Generators synced. Load-shedding protection ACTIVE until 3PM.', type: 'success' }, ...prev]); }, 4000); }} style={{ width: '100%', background: isSyncingGenerators ? '#92400e' : '#f59e0b', color: isSyncingGenerators ? 'white' : 'black', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: isSyncingGenerators ? 'default' : 'pointer', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', transition: 'all 0.3s' }}>
+                    <Cpu size={14} className={isSyncingGenerators ? 'spin' : ''} /> {isSyncingGenerators ? 'SYNCING GENERATORS...' : '\u26A1 Auto-Sync DG Sets'}
+                  </button>
+                </div>
+
+                {/* 6. Thermal Fire Predictor */}
+                <div style={{ background: 'linear-gradient(135deg, rgba(239,68,68,0.08) 0%, transparent 100%)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '14px', padding: '1.25rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                    <div>
+                      <div style={{ fontSize: '0.65rem', color: '#f87171', fontWeight: 'bold', letterSpacing: '1px', marginBottom: '4px' }}>THERMAL AI {'\u2014'} FIRE SAFETY</div>
+                      <h4 style={{ margin: 0, color: 'white', fontSize: '0.95rem' }}>Lint-Fire Predictor</h4>
+                    </div>
+                    <Flame size={20} color="#ef4444" />
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+                    {[['42\u00B0C','Sec A','#10b981'],['47\u00B0C','Sec B','#f59e0b'],['39\u00B0C','Sec C','#10b981'],['52\u00B0C','Sec D','#ef4444']].map(([t,s,c]) => (
+                      <div key={s} style={{ flex: 1, background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '6px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '0.9rem', fontWeight: '800', color: c }}>{t}</div>
+                        <div style={{ fontSize: '0.5rem', color: '#64748b' }}>{s}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', padding: '8px', fontSize: '0.7rem', color: '#f87171', marginBottom: '10px' }}>
+                    \u26A0 Section D (52\u00B0C) {'\u2014'} Lint accumulation detected. Misting trigger threshold: 55\u00B0C
+                  </div>
+                  <button onClick={() => { setSystemEvents(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString(), msg: 'Thermal AI: Overhead misting activated for Section D. Fire risk neutralized.', type: 'success' }, ...prev]); alert('Overhead misting system activated for Section D. Lint hotspot suppressed.'); }} style={{ width: '100%', background: 'rgba(239,68,68,0.15)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.8rem', transition: 'all 0.3s' }}>
+                    \uD83D\uDD25 Activate Section D Misting
+                  </button>
+                </div>
+
+                {/* 7. Shift Optimizer */}
+                <div style={{ background: 'linear-gradient(135deg, rgba(249,115,22,0.08) 0%, transparent 100%)', border: `1px solid ${isOptimizingShift ? '#f97316' : 'rgba(249,115,22,0.2)'}`, borderRadius: '14px', padding: '1.25rem', transition: 'all 0.3s' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                    <div>
+                      <div style={{ fontSize: '0.65rem', color: '#fb923c', fontWeight: 'bold', letterSpacing: '1px', marginBottom: '4px' }}>LABOR AI {'\u2014'} FATIGUE MONITOR</div>
+                      <h4 style={{ margin: 0, color: 'white', fontSize: '0.95rem' }}>Shift Rotation Optimizer</h4>
+                    </div>
+                    <Users size={20} color="#f97316" />
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', fontSize: '0.7rem' }}>
+                    {[['Shift A', '8', '#10b981'],['Shift B', '\u26A0 6h+', '#ef4444'],['Relief', '4 avail', '#6366f1']].map(([l,v,c]) => (
+                      <div key={l} style={{ flex: 1, background: 'rgba(0,0,0,0.3)', borderRadius: '6px', padding: '6px', textAlign: 'center' }}>
+                        <div style={{ fontWeight: '800', color: c }}>{v}</div>
+                        <div style={{ color: '#64748b', fontSize: '0.55rem' }}>{l}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <button onClick={() => { if (isOptimizingShift) return; setIsOptimizingShift(true); setSystemEvents(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString(), msg: 'Labor AI: Analyzing fatigue vectors for Shift B. Calculating rotation...', type: 'info' }, ...prev]); setTimeout(() => { setIsOptimizingShift(false); setSystemEvents(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString(), msg: 'Labor AI: 4 relief weavers assigned to Sector 4. Shift B fatigue risk eliminated.', type: 'success' }, ...prev]); }, 3500); }} style={{ width: '100%', background: isOptimizingShift ? '#7c2d12' : '#f97316', color: 'white', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: isOptimizingShift ? 'default' : 'pointer', fontSize: '0.8rem', transition: 'all 0.3s' }}>
+                    {isOptimizingShift ? '\u26A1 CALCULATING ROTATION...' : '\uD83D\uDC77 Optimize Shift Rotation'}
+                  </button>
                 </div>
               </div>
 
-              {/* RESTORED: Holographic & Quantum Orchestrator */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1.5rem', marginBottom: '1.5rem' }}>
-                <div className="stat-card" style={{ background: 'linear-gradient(90deg, rgba(168, 85, 247, 0.1) 0%, transparent 100%)', border: '1px solid rgba(168, 85, 247, 0.3)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <Box size={22} color="#a855f7" />
-                      <h3 style={{ margin: 0, color: '#a855f7' }}>Holographic 'Digital Twin' Analytics</h3>
-                    </div>
-                    <div className="pulse" style={{ width: '8px', height: '8px', background: '#ef4444', borderRadius: '50%' }}></div>
-                  </div>
-                  <p style={{ opacity: 0.8, fontSize: '0.9rem', marginBottom: '1.5rem' }}>Projected spatial AI view of machine telemetry. Visualizes invisible mechanical stress points using "Heatwave" spatial mapping.</p>
-                  <button className="btn-primary" style={{ width: '100%', background: 'linear-gradient(90deg, #a855f7, #8b5cf6)', border: 'none', color: 'white', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Load 3D Spatial Twin</button>
-                </div>
-
-                <div className="stat-card" style={{ background: 'linear-gradient(90deg, rgba(59, 130, 246, 0.1) 0%, transparent 100%)', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <Network size={22} color="#3b82f6" />
-                      <h3 style={{ margin: 0, color: '#3b82f6' }}>Quantum-Swarm 'Omni-Orchestrator'</h3>
-                    </div>
-                    <div style={{ background: 'rgba(59, 130, 246, 0.1)', border: '1px solid #3b82f6', color: '#60a5fa', padding: '4px 8px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 'bold', textAlign: 'center' }}>
-                      GLOBAL OPTIMUM<br />99.98%
-                    </div>
-                  </div>
-                  <p style={{ opacity: 0.8, fontSize: '0.9rem', marginBottom: '1.5rem' }}>Meta-AI synchronizing all 28 agents. Micro-adjusts looms 100x/sec to perfectly balance Speed vs. Energy vs. Quality.</p>
-                  <button className="btn-primary" style={{ width: '100%', background: 'linear-gradient(90deg, #3b82f6, #6366f1)', border: 'none', color: 'white', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Engage Universal Orchestration</button>
-                </div>
-
-                {/* RESTORED: Thermal AI Lint-Fire Predictor */}
-                <div className="stat-card" style={{ background: 'linear-gradient(90deg, rgba(239, 68, 68, 0.05) 0%, transparent 100%)', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ flex: 1, paddingRight: '20px' }}>
-                      <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#ef4444', margin: '0 0 10px 0' }}><Flame size={20} /> Thermal AI Lint-Fire Predictor</h3>
-                      <p style={{ opacity: 0.8, fontSize: '0.9rem', margin: 0 }}>Textile mills are fire hazards. Our AI uses thermal cameras to detect "hot-spots" in accumulated lint before they ignite, automatically triggering the overhead misting system.</p>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: 'bold', textTransform: 'uppercase' }}>Surface Temp</div>
-                      <div style={{ fontSize: '1.8rem', fontWeight: '900', color: 'white' }}>42<span style={{ fontSize: '1rem', color: '#94a3b8' }}>°C</span></div>
-                      <div style={{ fontSize: '0.65rem', color: '#10b981', fontWeight: 'bold' }}>SAFE RANGE</div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* RESTORED: ML 'Karigar' Skill-Atlas */}
-                <div className="stat-card" style={{ background: 'linear-gradient(90deg, rgba(139, 92, 246, 0.05) 0%, transparent 100%)', border: '1px solid rgba(139, 92, 246, 0.2)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div style={{ flex: 1 }}>
-                      <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#8b5cf6', margin: '0 0 10px 0' }}><Users size={20} /> ML 'Karigar' (Skill-Atlas) Indexer</h3>
-                      <p style={{ opacity: 0.8, fontSize: '0.9rem', margin: 0 }}>Automatically maps worker output quality against specific machines and yarn types. Suggests the best weaver for complex Suiting/Shirting orders to minimize loom-stoppage.</p>
-                    </div>
-                    <button className="btn-primary" style={{ background: '#8b5cf6', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Assign Best Karigar</button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="stat-card" style={{ marginTop: '1.5rem' }}>
-                <h3 className="section-title">Plant Floor Status</h3>
-                <div className="machine-grid">
-                  {machineStatus.map(m => (
-                    <div key={typeof m.id === 'object' ? JSON.stringify(m.id) : m.id} className="stat-card" style={{ padding: '1.25rem', border: '1px solid var(--border)', position: 'relative', overflow: 'hidden' }}>
-                      {m.status === 'Running' && (
-                        <div className="learning-dot active" style={{ position: 'absolute', top: '15px', right: '15px' }}></div>
-                      )}
-                      <div style={{ marginBottom: '1rem' }}>
-                        <div style={{ fontWeight: '700', fontSize: '0.9rem', marginBottom: '4px' }}>{typeof m.name === 'object' ? JSON.stringify(m.name) : m.name}</div>
-                        <span className={`badge ${m.status === 'Running' ? 'badge-success' : 'badge-danger'}`} style={{ fontSize: '0.6rem' }}>{typeof m.status === 'object' ? JSON.stringify(m.status) : m.status}</span>
+              {/* ======================================================================================
+                  LIVE MACHINE STATUS \u2014 DETAILED CARDS
+              ===================================================================================== */}
+              <div style={{ background: '#0a0f1e', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '16px', padding: '1.5rem', marginBottom: '1.5rem' }}>
+                <h3 style={{ margin: '0 0 1rem', fontSize: '0.85rem', letterSpacing: '2px', textTransform: 'uppercase', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Activity size={16} /> Live Machine Telemetry
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem' }}>
+                  {Array.isArray(machineStatus) && machineStatus.map(m => (
+                    <div key={m.id} style={{ background: '#0d1117', border: `1px solid ${m.status === 'Running' ? (m.temp > 85 ? 'rgba(239,68,68,0.4)' : 'rgba(16,185,129,0.2)') : 'rgba(245,158,11,0.3)'}`, borderRadius: '12px', padding: '1rem', position: 'relative', overflow: 'hidden', transition: 'all 0.3s' }}>
+                      {m.status === 'Running' && <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '2px', background: `linear-gradient(90deg, transparent, ${m.temp > 85 ? '#ef4444' : '#10b981'}, transparent)`, animation: 'scan 2s infinite linear' }} />}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                        <span style={{ fontSize: '0.8rem', fontWeight: '700', color: 'white' }}>{m.name}</span>
+                        <span style={{ fontSize: '0.55rem', padding: '2px 6px', borderRadius: '3px', fontWeight: 'bold', letterSpacing: '0.5px', background: m.status === 'Running' ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)', color: m.status === 'Running' ? '#10b981' : '#f59e0b', border: `1px solid ${m.status === 'Running' ? 'rgba(16,185,129,0.3)' : 'rgba(245,158,11,0.3)'}` }}>{m.status?.toUpperCase()}</span>
                       </div>
-
-                      <div style={{ marginBottom: '1rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
-                          <span>Loom Health</span>
-                          <span>{typeof m.health === 'object' ? JSON.stringify(m.health) : m.health}%</span>
+                      <div style={{ marginBottom: '8px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.6rem', color: '#475569', marginBottom: '3px' }}>
+                          <span>Health</span><span style={{ color: m.health > 70 ? '#10b981' : '#ef4444' }}>{m.health}%</span>
                         </div>
-                        <div style={{ height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px' }}>
-                          <div style={{ height: '100%', width: `${typeof m.health === 'object' ? JSON.stringify(m.health) : m.health}%`, background: m.health > 70 ? 'var(--accent)' : 'var(--danger)', borderRadius: '3px', boxShadow: `0 0 10px ${m.health > 70 ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}` }}></div>
+                        <div style={{ height: '4px', background: 'rgba(255,255,255,0.05)', borderRadius: '2px' }}>
+                          <div style={{ height: '100%', width: `${m.health}%`, background: m.health > 70 ? '#10b981' : '#ef4444', borderRadius: '2px', boxShadow: `0 0 6px ${m.health > 70 ? 'rgba(16,185,129,0.4)' : 'rgba(239,68,68,0.4)'}` }} />
                         </div>
                       </div>
-
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                        <div style={{ background: 'rgba(0,0,0,0.2)', padding: '8px', borderRadius: '8px', textAlign: 'center' }}>
-                          <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Temp</div>
-                          <div style={{ fontSize: '0.85rem', fontWeight: '800', color: m.temp > 80 && m.name.includes('Loom') ? 'var(--danger)' : 'white' }}>{typeof m.temp === 'object' ? JSON.stringify(m.temp) : m.temp}°C</div>
-                        </div>
-                        <div style={{ background: 'rgba(0,0,0,0.2)', padding: '8px', borderRadius: '8px', textAlign: 'center' }}>
-                          <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>RPM/Spd</div>
-                          <div style={{ fontSize: '0.85rem', fontWeight: '800' }}>{typeof m.rpm === 'object' ? JSON.stringify(m.rpm) : m.rpm}</div>
-                        </div>
-                      </div>
-
-                      <div style={{ marginTop: '0.75rem', fontSize: '0.65rem', display: 'flex', alignItems: 'center', gap: '5px', opacity: 0.6 }}>
-                        <Activity size={10} /> Vibration: <span style={{ color: m.vibration === 'High' ? 'var(--danger)' : 'var(--accent)' }}>{typeof m.vibration === 'object' ? JSON.stringify(m.vibration) : m.vibration}</span>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px' }}>
+                        {[['TEMP', `${m.temp}\u00B0C`, m.temp > 85 ? '#ef4444' : '#94a3b8'], ['RPM', m.rpm, '#6366f1'], ['VIB', m.vibration, m.vibration === 'High' ? '#ef4444' : '#10b981']].map(([l,v,c]) => (
+                          <div key={l} style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '6px', padding: '5px', textAlign: 'center' }}>
+                            <div style={{ fontSize: '0.7rem', fontWeight: '800', color: c }}>{v}</div>
+                            <div style={{ fontSize: '0.45rem', color: '#334155', letterSpacing: '0.5px' }}>{l}</div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* HACKATHON WINNER: Computer Vision Mockup */}
-              <div className="stat-card" style={{ marginTop: '1.5rem', background: 'linear-gradient(rgba(139, 92, 246, 0.15), transparent)', border: '1px solid rgba(139, 92, 246, 0.3)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                  <h3 className="section-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px', color: '#a78bfa' }}>
-                    <Video size={22} /> Live Computer Vision Defect Detection
-                  </h3>
-                  <span className="badge" style={{ background: '#8b5cf6', color: 'white' }}>MODEL: YOLOv8 (EDGE)</span>
-                </div>
-                <div style={{
-                  width: '100%', height: '220px', background: '#000', borderRadius: '12px', position: 'relative', overflow: 'hidden',
-                  backgroundImage: 'url("https://www.fibre2fashion.com/news/images/270/shutterstock_1854497641_289356.jpg")',
-                  backgroundSize: 'cover', backgroundPosition: 'center', border: '2px solid #1e293b'
-                }}>
-                  {/* Simulated Scanner Line */}
-                  <div style={{ position: 'absolute', top: 0, left: '30%', width: '4px', height: '100%', background: 'rgba(139, 92, 246, 0.7)', boxShadow: '0 0 15px #8b5cf6', animation: 'scan 3s infinite linear' }}></div>
-                  {/* Simulated Defect Box */}
-                  <div style={{ position: 'absolute', top: '40%', left: '45%', border: '2px solid #f43f5e', width: '50px', height: '50px', backgroundColor: 'rgba(244, 63, 94, 0.2)' }}>
-                    <div style={{ background: '#f43f5e', color: 'white', fontSize: '0.6rem', padding: '2px 4px', fontWeight: 'bold', position: 'absolute', top: '-18px', left: '-2px', whiteSpace: 'nowrap' }}>
-                      1.2mm Yarn Breakage (97%)
-                    </div>
-                  </div>
-                  {/* Recording indicator */}
-                  <div style={{ position: 'absolute', top: '10px', right: '10px', display: 'flex', alignItems: 'center', gap: '5px', background: 'rgba(0,0,0,0.5)', padding: '4px 8px', borderRadius: '4px' }}>
-                    <div style={{ width: '8px', height: '8px', background: '#ef4444', borderRadius: '50%', animation: 'pulse 1.5s infinite' }}></div>
-                    <span style={{ fontSize: '0.7rem', color: 'white', fontWeight: 'bold' }}>LIVE FEED - Loom 4</span>
-                  </div>
-                </div>
-                <style>{`
-                    @keyframes scan { 0% { left: 10%; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { left: 90%; opacity: 0; } }
-                    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
-                  `}</style>
-              </div>
-
-              {renderAgentGrid(['Operations', 'Quality Control', 'Labor & HR'], 'Production & Operations AI')}
-            </>
+              <AgentGrid categories={['Operations', 'Quality Control', 'Labor & HR']} title="Production & Operations AI" focusedAgent={focusedAgent} setFocusedAgent={setFocusedAgent} />
+            </div>
           )
         }
+
+
+
+
+
+
+
 
         {
           activeTab === 'maintenance' && (
@@ -1685,22 +2437,22 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
               <div className="stats-grid">
                 <div className="stat-card">
                   <div className="stat-header"><span className="stat-label">Next Service In</span><Activity size={20} color="var(--primary)" /></div>
-                  <div className="stat-value">{typeof downtimePrediction.daysToNextService === 'object' ? JSON.stringify(downtimePrediction.daysToNextService) : downtimePrediction.daysToNextService || '15'} Days</div>
-                  <div className="stat-label">Failure Risk: <span style={{ color: downtimePrediction.failureRisk === 'CRITICAL' ? 'var(--danger)' : 'var(--accent)' }}>{typeof downtimePrediction.failureRisk === 'object' ? JSON.stringify(downtimePrediction.failureRisk) : downtimePrediction.failureRisk || 'Low'}</span></div>
+                  <div className="stat-value">{renderSafeValue(downtimePrediction.daysToNextService, '15')} Days</div>
+                  <div className="stat-label">Failure Risk: <span style={{ color: downtimePrediction.failureRisk === 'CRITICAL' ? 'var(--danger)' : 'var(--accent)' }}>{renderSafeValue(downtimePrediction.failureRisk, 'Low')}</span></div>
                   <div style={{ marginTop: '1rem', fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '5px', color: 'var(--primary)' }}>
                     <BrainCircuit size={14} /> Powered by LSTM Time-Series Algortihm
                   </div>
                 </div>
                 <div className="stat-card" style={{ border: downtimePrediction.failureRisk === 'CRITICAL' ? '1px solid var(--danger)' : 'none' }}>
                   <div className="stat-header"><span className="stat-label">Downtime Loss Risk</span><Zap size={20} color="var(--danger)" /></div>
-                  <div className="stat-value">{typeof downtimePrediction.potentialLoss === 'object' ? JSON.stringify(downtimePrediction.potentialLoss) : downtimePrediction.potentialLoss || '₹0'}</div>
+                  <div className="stat-value">{renderSafeValue(downtimePrediction.potentialLoss, '0')}</div>
                   <div className="stat-label">Projected Revenue Impact/Day</div>
                   <button
                     className="btn-primary"
                     style={{ width: '100%', marginTop: '1rem', background: downtimePrediction.failureRisk === 'CRITICAL' ? 'var(--danger)' : 'rgba(255,255,255,0.05)', fontSize: '0.75rem', padding: '0.5rem', border: 'none', color: 'white', cursor: 'pointer', borderRadius: '4px' }}
                     onClick={() => {
                       alert('Maintenance Team Dispatched! Risk levels resetting...');
-                      setDowntimePrediction(prev => ({ ...prev, failureRisk: 'Low', daysToNextService: '30+', potentialLoss: '₹0' }));
+                      setDowntimePrediction(prev => ({ ...prev, failureRisk: 'Low', daysToNextService: '30+', potentialLoss: '0' }));
                     }}
                   >
                     Dispatch Maintenance Team
@@ -1708,7 +2460,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                 </div>
                 <div className="stat-card">
                   <div className="stat-header"><span className="stat-label">System Health</span><ShieldCheck size={20} color="var(--accent)" /></div>
-                  <div className="stat-value">{typeof maintenanceScore === 'object' ? JSON.stringify(maintenanceScore) : maintenanceScore}%</div>
+                  <div className="stat-value">{renderSafeValue(maintenanceScore, '100')}%</div>
                   <div className="stat-label">Overall Plant Condition</div>
                 </div>
               </div>
@@ -1716,7 +2468,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
               <div className="chart-container" style={{ marginTop: '1.5rem' }}>
                 <h3 className="section-title">AI Maintenance Recommendations</h3>
                 <div className="recommendations-list">
-                  {recommendations.length > 0 ? recommendations.map((rec, i) => (
+                  {Array.isArray(recommendations) && recommendations.length > 0 ? recommendations.map((rec, i) => (
                     <div key={i} className="alert alert-info" style={{ marginBottom: '1rem', borderLeft: '4px solid var(--primary)' }}>
                       <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
                         <Settings size={18} style={{ marginTop: '2px' }} />
@@ -1737,36 +2489,56 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                 <div className="stat-card" style={{ background: 'linear-gradient(90deg, rgba(236, 72, 153, 0.05) 0%, transparent 100%)', border: '1px solid rgba(236, 72, 153, 0.2)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ flex: 1, paddingRight: '20px' }}>
-                      <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#ec4899', margin: '0 0 10px 0' }}><Mic size={20} /> Acoustic Bearing AI Failure Detector</h3>
+                      <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#ec4899', margin: '0 0 10px 0' }}><Mic size={20} /> Acoustic Bearing AI & Spectral Harmonics</h3>
                       <p style={{ opacity: 0.8, fontSize: '0.9rem', margin: 0 }}>Uses floor microphones to analyze motor "hum" frequencies. Detects microscopic bearing wear and pits by identifying 4kHz ultrasonic resonance signatures.</p>
                     </div>
                     <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-                      <div style={{ height: '40px', width: '60px', borderBottom: '1px solid #ec4899', display: 'flex', alignItems: 'flex-end', gap: '2px' }}>
-                        {[40, 60, 30, 80, 50, 90, 40, 60, 100, 30].map((h, i) => (
-                          <div key={i} style={{ width: '4px', height: `${h}%`, background: h > 70 ? '#f43f5e' : '#ec4899', opacity: 0.8 }}></div>
-                        ))}
-                      </div>
-                      <button className="btn-primary" style={{ background: '#ec4899', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', whiteSpace: 'nowrap' }}>Listen for Bearing Wear</button>
+                      {spectralWave ? (
+                        <div style={{ display: 'flex', gap: '3px', height: '40px', alignItems: 'center' }}>
+                          {[...Array(10)].map((_, i) => (
+                            <div key={i} className="spectral-bar" style={{ width: '4px', background: '#ec4899', height: `${20 + Math.random() * 60}%`, animationDelay: `${i * 0.1}s` }}></div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{ height: '40px', width: '60px', borderBottom: '1px solid #ec4899', display: 'flex', alignItems: 'flex-end', gap: '2px' }}>
+                          {[40, 60, 30, 80, 50, 90, 40, 60, 100, 30].map((h, i) => (
+                            <div key={i} style={{ width: '4px', height: `${h}%`, background: h > 70 ? '#f43f5e' : '#ec4899', opacity: 0.8 }}></div>
+                          ))}
+                        </div>
+                      )}
+                      <button className="btn-primary" style={{ background: '#ec4899', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', whiteSpace: 'nowrap' }} onClick={handleThermalScan}>{isThermalScanning ? 'ANALYZING HARMONICS...' : 'Listen for Bearing Wear'}</button>
                     </div>
                   </div>
                 </div>
 
                 <div className="stat-card" style={{ background: 'linear-gradient(90deg, rgba(16, 185, 129, 0.05) 0%, transparent 100%)', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                    <div>
-                      <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#10b981', margin: '0 0 10px 0' }}><Droplet size={20} /> AI 'Swayam-Siddha' (Self-Healing) Lube-Pulse</h3>
-                      <p style={{ opacity: 0.8, fontSize: '0.9rem', margin: 0 }}>Analyzes molecular friction heat. Delivers micro-precision lubrication pulses exactly when metal stress peaks, extending machine life by 400%.</p>
+                    <div style={{ flex: 1 }}>
+                      <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#10b981', margin: '0 0 10px 0' }}><Flame size={20} /> AI 'Thermal-Scan' Motor Gradient</h3>
+                      <p style={{ opacity: 0.8, fontSize: '0.9rem', margin: 0 }}>Real-time infrared telemetry. Monitors motor winding temperatures to detect heat-bloom before insulator failure occurs. Extends motor life by 400% through optimized cooling.</p>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center' }}>
-                      <span style={{ fontSize: '0.7rem', color: '#cbd5e1', fontWeight: 'bold', letterSpacing: '1px' }}>FRICTION REDUCED</span>
-                      <span style={{ fontSize: '1.8rem', fontWeight: '900', color: '#10b981' }}>-82%</span>
+                    <div style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
+                      {isThermalScanning && (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                          {['L4', 'L7', 'S1'].map(id => (
+                            <div key={id} className="thermal-active" style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #ef4444', textAlign: 'center' }}>
+                              <div style={{ fontSize: '0.6rem', color: '#ef4444' }}>{id}</div>
+                              <div style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>{thermalMap ? `${thermalMap[id === 'L4' ? 'loom4' : id === 'L7' ? 'loom7' : 'stenter1']}°C` : '--'}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center' }}>
+                        <span style={{ fontSize: '0.7rem', color: '#cbd5e1', fontWeight: 'bold', letterSpacing: '1px' }}>THERMAL STRESS</span>
+                        <span style={{ fontSize: '1.8rem', fontWeight: '900', color: thermalMap?.loom7 > 90 ? '#ef4444' : '#10b981' }}>{thermalMap ? 'HIGH' : 'LOW'}</span>
+                      </div>
                     </div>
                   </div>
-                  <button className="btn-primary" style={{ width: '100%', background: '#10b981', color: 'black', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Execute Maintenance Micro-Pulse</button>
+                  <button className="btn-primary" style={{ width: '100%', background: '#10b981', color: 'black', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }} onClick={handleThermalScan}>{isThermalScanning ? 'SCANNING HEAT GRADIENTS...' : 'Run Infrared Thermal Audit'}</button>
                 </div>
               </div>
 
-              {renderAgentGrid(['Predictive Maintenance'], 'Predictive Diagnostics AI')}
+              <AgentGrid categories={['Predictive Maintenance']} title="Predictive Diagnostics AI" focusedAgent={focusedAgent} setFocusedAgent={setFocusedAgent} />
             </div>
           )
         }
@@ -1779,7 +2551,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
               <div className="stats-grid">
                 <div className="stat-card">
                   <div className="stat-header"><span className="stat-label">Production Flow</span><Cpu size={20} color="var(--primary)" /></div>
-                  <div className="stat-value">{typeof textileFlow.rejectionRate === 'object' ? JSON.stringify(textileFlow.rejectionRate) : textileFlow.rejectionRate || '0'}%</div>
+                  <div className="stat-value">{renderSafeValue(textileFlow.rejectionRate, '0')}%</div>
                   <div className="stat-label">Rejection Rate (Grey to Finished)</div>
                 </div>
                 <div className="stat-card" style={{ borderLeft: '4px solid #0ea5e9', background: 'linear-gradient(rgba(14, 165, 233, 0.05), transparent)' }}>
@@ -1796,7 +2568,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                 </div>
                 <div className="stat-card">
                   <div className="stat-header"><span className="stat-label">Labor skill index</span><Users size={20} color="var(--primary)" /></div>
-                  <div className="stat-value">{typeof laborSkill.overallScore === 'object' ? JSON.stringify(laborSkill.overallScore) : laborSkill.overallScore || '78'}/100</div>
+                  <div className="stat-value">{renderSafeValue(laborSkill.overallScore, '78')}/100</div>
                   <div className="stat-label">Bhilwara Cluster Avg: 72</div>
                 </div>
               </div>
@@ -1831,7 +2603,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                   <div style={{ textAlign: 'center', zIndex: 1 }}>
                     <div style={{ width: '60px', height: '60px', background: 'rgba(99, 102, 241, 0.2)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '0.5rem' }}><Layers size={24} color="var(--primary)" /></div>
                     <div style={{ fontSize: '0.9rem', fontWeight: '700' }}>Grey</div>
-                    <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>{typeof textileFlow.greyProduced === 'object' ? JSON.stringify(textileFlow.greyProduced) : textileFlow.greyProduced || 0}m</div>
+                    <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>{renderSafeValue(textileFlow.greyProduced, 0)}m</div>
                   </div>
                   <div style={{ flex: 1, height: '4px', background: 'rgba(255,255,255,0.1)', margin: '0 10px', marginTop: '-30px', position: 'relative' }}>
                     <div style={{ width: '100%', height: '100%', background: 'var(--primary)', opacity: 0.3 }}></div>
@@ -1839,7 +2611,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                   <div style={{ textAlign: 'center', zIndex: 1 }}>
                     <div style={{ width: '60px', height: '60px', background: 'rgba(16, 185, 129, 0.2)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '0.5rem' }}><Droplets size={24} color="var(--accent)" /></div>
                     <div style={{ fontSize: '0.9rem', fontWeight: '700' }}>Dyed</div>
-                    <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>{typeof textileFlow.dyedCompleted === 'object' ? JSON.stringify(textileFlow.dyedCompleted) : textileFlow.dyedCompleted || 0}m</div>
+                    <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>{renderSafeValue(textileFlow.dyedCompleted, 0)}m</div>
                   </div>
                   <div style={{ flex: 1, height: '4px', background: 'rgba(255,255,255,0.1)', margin: '0 10px', marginTop: '-30px', position: 'relative' }}>
                     <div style={{ width: '100%', height: '100%', background: 'var(--accent)', opacity: 0.3 }}></div>
@@ -1847,7 +2619,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                   <div style={{ textAlign: 'center', zIndex: 1 }}>
                     <div style={{ width: '60px', height: '60px', background: 'rgba(139, 92, 246, 0.2)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '0.5rem' }}><CheckCircle size={24} color="#8b5cf6" /></div>
                     <div style={{ fontSize: '0.9rem', fontWeight: '700' }}>Finished</div>
-                    <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>{typeof textileFlow.finishedCompleted === 'object' ? JSON.stringify(textileFlow.finishedCompleted) : textileFlow.finishedCompleted || 0}m</div>
+                    <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>{renderSafeValue(textileFlow.finishedCompleted, 0)}m</div>
                   </div>
                 </div>
                 <div style={{ marginTop: '2rem', padding: '1.5rem', background: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.1)', borderRadius: '12px' }}>
@@ -1856,7 +2628,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                       <h4 style={{ margin: 0, color: 'var(--accent)' }}>Workflow Optimization Engine</h4>
                       <span style={{ fontSize: '0.7rem', padding: '4px 8px', background: 'rgba(14, 165, 233, 0.2)', border: '1px solid #0ea5e9', borderRadius: '4px', color: '#0ea5e9', display: 'flex', alignItems: 'center', gap: '4px' }}><BrainCircuit size={12} /> XGBoost Classifier</span>
                     </div>
-                    <span className="badge" style={{ background: 'var(--accent)', color: '#000' }}>+{typeof workflowOpt.projectedEfficiencyGain === 'object' ? JSON.stringify(workflowOpt.projectedEfficiencyGain) : workflowOpt.projectedEfficiencyGain || '0%'} GAIN</span>
+                    <span className="badge" style={{ background: 'var(--accent)', color: '#000' }}>+{renderSafeValue(workflowOpt.projectedEfficiencyGain, '0%')} GAIN</span>
                   </div>
                   <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
                     <BrainCircuit size={20} color="var(--accent)" style={{ marginTop: '2px' }} />
@@ -1907,7 +2679,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                   </div>
                   <div style={{ padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '12px' }}>
                     <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Cost Saving per kg</div>
-                    <div style={{ fontSize: '1.2rem', fontWeight: '800', color: 'var(--accent)' }}>₹{typeof yarnOpt.costSavingPerKg === 'object' ? JSON.stringify(yarnOpt.costSavingPerKg) : yarnOpt.costSavingPerKg || '12.5'}</div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: '800', color: 'var(--accent)' }}>{typeof yarnOpt.costSavingPerKg === 'object' ? JSON.stringify(yarnOpt.costSavingPerKg) : yarnOpt.costSavingPerKg || '12.5'}</div>
                   </div>
                   <div style={{ padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '12px' }}>
                     <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Blend Quality Factor</div>
@@ -1944,18 +2716,35 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                   </div>
                   <span className="badge" style={{ background: '#10b981', color: 'black', fontWeight: '900' }}>CIRCULAR ECONOMY</span>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '20px', alignItems: 'center' }}>
-                  <div style={{ background: 'rgba(0,0,0,0.3)', padding: '15px', borderRadius: '8px' }}>
-                    <div style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '5px' }}>Current Scrap Volume</div>
-                    <div style={{ fontSize: '1.4rem', fontWeight: '900', color: 'white' }}>420 kg</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '20px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                    <div style={{ background: 'rgba(0,0,0,0.3)', padding: '15px', borderRadius: '8px' }}>
+                      <div style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '5px' }}>Current Scrap Volume</div>
+                      <div style={{ fontSize: '1.4rem', fontWeight: '900', color: 'white' }}>420 kg</div>
+                    </div>
+                    <div style={{ background: 'rgba(0,0,0,0.3)', padding: '15px', borderRadius: '8px' }}>
+                      <div style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '5px' }}>Market Rate (Bhilwara)</div>
+                      <div style={{ fontSize: '1.4rem', fontWeight: '900', color: '#10b981' }}>₹12 / kg</div>
+                    </div>
+                    <button className="btn-primary" style={{ background: '#10b981', color: 'black', border: 'none', padding: '15px 30px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
+                      Sell Scrap Locally
+                    </button>
                   </div>
-                  <div style={{ background: 'rgba(0,0,0,0.3)', padding: '15px', borderRadius: '8px' }}>
-                    <div style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '5px' }}>Market Rate (Bhilwara)</div>
-                    <div style={{ fontSize: '1.4rem', fontWeight: '900', color: '#10b981' }}>₹12 / kg</div>
+                  <div style={{ background: 'rgba(0,0,0,0.3)', padding: '15px', borderRadius: '12px', border: '1px solid rgba(16, 185, 129, 0.1)' }}>
+                    <div style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 'bold', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>Nearby Verified Recyclers</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {[
+                        { name: "Bhilwara Green Fiber", distance: "2.4 km", price: "₹12.2", capacity: "Full" },
+                        { name: "Marwar Recycle Hub", distance: "4.1 km", price: "₹11.8", capacity: "Open" },
+                        { name: "Rajasthan Textile Salvage", distance: "8.5 km", price: "₹12.5", capacity: "Open" }
+                      ].map((r, i) => (
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', fontSize: '0.8rem' }}>
+                          <div style={{ fontWeight: 'bold' }}>{r.name} <span style={{ opacity: 0.5, fontWeight: 'normal' }}>({r.distance})</span></div>
+                          <div style={{ color: '#10b981', fontWeight: 'bold' }}>{r.price}/kg</div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <button className="btn-primary" style={{ background: '#10b981', color: 'black', border: 'none', padding: '15px 30px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', height: '100%' }}>
-                    Sell Scrap Locally
-                  </button>
                 </div>
               </div>
 
@@ -1973,7 +2762,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                         <div style={{ fontSize: '0.65rem', opacity: 0.6, letterSpacing: '1px' }}>RECOVERY RATE</div>
                       </div>
                       <div>
-                        <div style={{ fontSize: '1.5rem', fontWeight: '800', color: '#10b981' }}>₹8.2k</div>
+                        <div style={{ fontSize: '1.5rem', fontWeight: '800', color: '#10b981' }}>8.2k</div>
                         <div style={{ fontSize: '0.65rem', opacity: 0.6, letterSpacing: '1px' }}>SLUDGE SAVING</div>
                       </div>
                     </div>
@@ -1981,18 +2770,26 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                   <button className="btn-primary" style={{ background: '#0ea5e9', border: 'none', color: 'black', fontWeight: 'bold', padding: '10px', borderRadius: '8px', cursor: 'pointer' }}><RefreshCcw size={16} style={{ display: 'inline', marginRight: '8px' }} /> Optimize Water Dosing</button>
                 </div>
 
-                <div className="stat-card" style={{ background: 'linear-gradient(90deg, #1f1406 0%, transparent 100%)', border: '1px solid #f97316', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div className="stat-card" style={{ background: 'linear-gradient(90deg, #1f1406 0%, transparent 100%)', border: '1px solid #f97316', display: 'flex', flexDirection: 'column', gap: '1rem', position: 'relative', overflow: 'hidden' }}>
+                  {isScanningTexture && (
+                    <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                      <div className="micro-grid" style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle, #f97316 1px, transparent 1px)', backgroundSize: '10px 10px', opacity: 0.3 }}></div>
+                      <div className="scan-bar" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '2px', background: '#f97316', boxShadow: '0 0 15px #f97316', animation: 'scan-vertical 3s linear infinite' }}></div>
+                      <Fingerprint size={48} color="#f97316" className="spin-slow" />
+                      <div style={{ color: '#f97316', fontWeight: 'bold', marginTop: '1rem', letterSpacing: '2px', fontSize: '0.7rem' }}>ANALYZING MICROSCOPIC WEAVE...</div>
+                    </div>
+                  )}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
                       <h3 style={{ margin: '0 0 5px 0', color: '#f97316', display: 'flex', alignItems: 'center', gap: '8px' }}><Fingerprint size={20} /> Micro-Texture 'Fabric Fingerprint'</h3>
                       <p style={{ margin: 0, opacity: 0.8, fontSize: '0.9rem' }}>Uses Deep-CV to map the unique microscopic weave of every Bhilwara roll. Generates a blockchain-ready authenticity certificate to prevent counterfeits.</p>
                     </div>
                     <div style={{ background: 'rgba(249, 115, 22, 0.1)', padding: '8px 16px', borderRadius: '8px', textAlign: 'center', border: '1px solid #f97316' }}>
-                      <div style={{ fontSize: '0.9rem', fontWeight: '900', color: '#f97316', letterSpacing: '1px' }}>GENUINE</div>
-                      <div style={{ fontSize: '0.6rem', opacity: 0.7 }}>Roll #BH902-X</div>
+                      <div style={{ fontSize: '0.9rem', fontWeight: '900', color: textureHash ? '#10b981' : '#f97316', letterSpacing: '1px' }}>{textureHash ? 'VERIFIED' : 'GENUINE'}</div>
+                      <div style={{ fontSize: '0.6rem', opacity: 0.7 }}>{textureHash || 'Roll #BH902-X'}</div>
                     </div>
                   </div>
-                  <button className="btn-primary" style={{ background: '#f97316', border: 'none', color: 'white', fontWeight: 'bold', padding: '10px', borderRadius: '8px', cursor: 'pointer' }}>Authenticate Roll Texture</button>
+                  <button className="btn-primary" style={{ background: '#f97316', border: 'none', color: 'white', fontWeight: 'bold', padding: '10px', borderRadius: '8px', cursor: 'pointer' }} onClick={handleTextureScan}>Authenticate Roll Texture</button>
                 </div>
 
                 <div className="stat-card" style={{ background: 'linear-gradient(90deg, rgba(16, 185, 129, 0.1) 0%, transparent 100%)', border: '1px solid rgba(16, 185, 129, 0.3)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -2021,7 +2818,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                 </div>
               </div>
 
-              {renderAgentGrid(['Supply Chain', 'Sustainability'], 'Supply Chain & Sustainability AI')}
+              <AgentGrid categories={['Supply Chain', 'Sustainability']} title="Supply Chain & Sustainability AI" focusedAgent={focusedAgent} setFocusedAgent={setFocusedAgent} />
             </div>
           )
         }
@@ -2036,7 +2833,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
               <div className="stats-grid">
                 <div className="stat-card" style={{ background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(30, 41, 59, 0) 100%)' }}>
                   <div className="stat-header"><span className="stat-label">Real-Time Profit Margin</span><DollarSign size={20} color="var(--accent)" /></div>
-                  <div className="stat-value">₹{typeof profit.monthlyProfit === 'object' ? JSON.stringify(profit.monthlyProfit) : profit.monthlyProfit || '0'} Cr</div>
+                  <div className="stat-value">{renderSafeValue(profit.monthlyProfit, '0')} Cr</div>
                   <div className="stat-label">Projection (Next 30D)</div>
                 </div>
                 <div className="stat-card">
@@ -2046,29 +2843,64 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                 </div>
                 <div className="stat-card">
                   <div className="stat-header"><span className="stat-label">Cost Optimization</span><Cpu size={20} color="var(--primary)" /></div>
-                  <div className="stat-value">₹{typeof costOptimization.totalSavings === 'object' ? JSON.stringify(costOptimization.totalSavings) : costOptimization.totalSavings || '1.2'}L</div>
+                  <div className="stat-value">{typeof costOptimization.totalSavings === 'object' ? JSON.stringify(costOptimization.totalSavings) : costOptimization.totalSavings || '1.2'}L</div>
                   <div className="stat-label">Potential Monthly Savings</div>
                 </div>
                 <div className="stat-card">
                   <div className="stat-header"><span className="stat-label">Cost per Meter</span><Activity size={20} color="var(--primary)" /></div>
-                  <div className="stat-value">{typeof profit.costPerMeter === 'object' ? JSON.stringify(profit.costPerMeter) : profit.costPerMeter || '₹8.50'}</div>
+                  <div className="stat-value">{typeof profit.costPerMeter === 'object' ? JSON.stringify(profit.costPerMeter) : profit.costPerMeter || '8.50'}</div>
                   <div className="stat-label">Textile Cluster Benchmark</div>
                 </div>
               </div>
 
               {/* RESTORED: Finance Arbitrage Grid */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginTop: '1.5rem' }}>
-                <div className="stat-card" style={{ background: 'linear-gradient(180deg, #0f172a 0%, #172554 100%)', border: '1px solid #3b82f6', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div className="stat-card" style={{ gridColumn: 'span 2', background: 'linear-gradient(180deg, #0f172a 0%, #172554 100%)', border: '1px solid #3b82f6', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <h4 style={{ margin: 0, color: '#93c5fd', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}><Globe size={16} /> Global Price Arbitrage</h4>
-                    <span style={{ fontSize: '0.6rem', color: '#60a5fa', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>London/Bursa/China</span>
+                    <span style={{ fontSize: '0.6rem', color: '#60a5fa', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>Live Market Sync: TURKEY - INDIA</span>
                   </div>
-                  <div>
-                    <div style={{ fontSize: '1.5rem', fontWeight: '800', color: '#3b82f6', marginBottom: '8px' }}>Arbitrage Gap: +₹14.2/m</div>
-                    <p style={{ fontSize: '0.8rem', opacity: 0.8, margin: 0, lineHeight: 1.4 }}>Detected price-drop in Turkish cotton yarn. Buy window open for next 3 hours.</p>
+                  
+                  <div style={{ overflowX: 'auto', marginBottom: '8px' }}>
+                    <table style={{ width: '100%', fontSize: '0.75rem', borderCollapse: 'collapse', textAlign: 'left' }}>
+                      <thead>
+                        <tr style={{ color: '#94a3b8', borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
+                          <th style={{ padding: '8px 4px' }}>Market</th>
+                          <th style={{ padding: '8px 4px' }}>Price (INR/kg)</th>
+                          <th style={{ padding: '8px 4px' }}>Quality Index</th>
+                          <th style={{ padding: '8px 4px' }}>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td style={{ padding: '8px 4px' }}>Bhilwara (Local)</td>
+                          <td style={{ padding: '8px 4px' }}>232.2</td>
+                          <td style={{ padding: '8px 4px' }}>92%</td>
+                          <td style={{ padding: '8px 4px', color: '#cbd5e1' }}>Stable</td>
+                        </tr>
+                        <tr style={{ background: 'rgba(59, 130, 246, 0.1)' }}>
+                          <td style={{ padding: '8px 4px' }}>Bursa (Turkey)</td>
+                          <td style={{ padding: '8px 4px', fontWeight: 'bold', color: '#3b82f6' }}>218.0</td>
+                          <td style={{ padding: '8px 4px' }}>94%</td>
+                          <td style={{ padding: '8px 4px', color: '#10b981', fontWeight: 'bold' }}>-6.2% DROP</td>
+                        </tr>
+                        <tr>
+                          <td style={{ padding: '8px 4px' }}>Guangzhou</td>
+                          <td style={{ padding: '8px 4px' }}>241.5</td>
+                          <td style={{ padding: '8px 4px' }}>88%</td>
+                          <td style={{ padding: '8px 4px', color: '#ef4444' }}>Rising</td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
+
+                  <div style={{ background: 'rgba(59, 130, 246, 0.1)', padding: '10px', borderRadius: '8px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+                    <div style={{ fontSize: '1.2rem', fontWeight: '800', color: '#3b82f6', marginBottom: '4px' }}>Arbitrage Gap: +₹14.2/m</div>
+                    <p style={{ fontSize: '0.75rem', opacity: 0.8, margin: 0, lineHeight: 1.4 }}>Detected price-drop in Turkish cotton yarn. 5,000kg window open for 2h 42m.</p>
+                  </div>
+                  
                   <div style={{ marginTop: 'auto' }}>
-                    <button className="btn-primary" style={{ width: '100%', background: '#3b82f6', border: 'none', color: 'white', fontWeight: 'bold', padding: '10px', borderRadius: '8px', cursor: 'pointer' }} onClick={async () => { try { const res = await fetch('http://localhost:3001/owner/arbitrage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ commodity: 'cotton', market: 'Bursa', volume: 500 }) }); const data = await res.json(); alert(data.message || 'Arbitrage locked successfully.'); } catch (err) { alert('Error: Could not reach the owner server at http://localhost:3001/owner/arbitrage. Please ensure the backend is running.'); } }}>Lock Arbitrage Window</button>
+                    <button className="btn-primary" style={{ width: '100%', background: '#3b82f6', border: 'none', color: 'white', fontWeight: 'bold', padding: '10px', borderRadius: '8px', cursor: 'pointer' }} onClick={async () => { try { const res = await api.post('/owner/arbitrage', { commodity: 'cotton', market: 'Bursa', volume: 500 }); alert(res.data.message || 'Arbitrage locked successfully.'); } catch (err) { alert('Error: Could not reach the API. Please ensure the backend is running.'); console.error(err); } }}>Lock Arbitrage Window</button>
                   </div>
                 </div>
 
@@ -2079,10 +2911,10 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                   </div>
                   <div>
                     <div style={{ fontSize: '1.8rem', fontWeight: '900', color: '#10b981', marginBottom: '8px' }}>Deficit Risk: 14 Days</div>
-                    <p style={{ fontSize: '0.8rem', opacity: 0.8, margin: 0, lineHeight: 1.4 }}>₹12 Lakh locked in unpaid invoices. Recommending immediate factoring.</p>
+                    <p style={{ fontSize: '0.8rem', opacity: 0.8, margin: 0, lineHeight: 1.4 }}>12 Lakh locked in unpaid invoices. Recommending immediate factoring.</p>
                   </div>
                   <div style={{ marginTop: 'auto' }}>
-                    <button className="btn-primary" style={{ width: '100%', background: '#10b981', border: 'none', color: 'black', fontWeight: 'bold', padding: '10px', borderRadius: '8px', cursor: 'pointer' }} onClick={async () => { try { const res = await fetch('http://localhost:3001/owner/cash-crunch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ totalUnpaid: 1200000, deficitDays: 14 }) }); const data = await res.json(); alert(data.message || 'Invoice factoring initiated successfully.'); } catch (err) { alert('Error: Could not reach the owner server at http://localhost:3001/owner/cash-crunch. Please ensure the backend is running.'); } }}><RefreshCcw size={14} style={{ display: 'inline', marginRight: '6px' }} /> Auto-Factor Unpaid Invoices</button>
+                    <button className="btn-primary" style={{ width: '100%', background: '#10b981', border: 'none', color: 'black', fontWeight: 'bold', padding: '10px', borderRadius: '8px', cursor: 'pointer' }} onClick={async () => { try { const res = await api.post('/owner/cash-crunch', { totalUnpaid: 1200000, deficitDays: 14 }); alert(res.data.message || 'Invoice factoring initiated successfully.'); } catch (err) { alert('Error: Could not reach the API. Please ensure the backend is running.'); console.error(err); } }}><RefreshCcw size={14} style={{ display: 'inline', marginRight: '6px' }} /> Auto-Factor Unpaid Invoices</button>
                   </div>
                 </div>
 
@@ -2096,7 +2928,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                     <p style={{ fontSize: '0.8rem', opacity: 0.8, margin: 0, lineHeight: 1.4 }}>Detected handwritten Marwari/Hindi ledger entries in red 'Bahi-Khata'. Extraction is pending.</p>
                   </div>
                   <div style={{ marginTop: 'auto' }}>
-                    <button className="btn-primary" style={{ width: '100%', background: 'transparent', border: '1px solid #6366f1', color: '#a5b4fc', fontWeight: 'bold', padding: '10px', borderRadius: '8px', cursor: 'pointer' }} onClick={async () => { try { const res = await fetch('http://localhost:3001/owner/ledger-scan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ledgerType: 'Bahi-Khata', language: 'Marwari/Hindi' }) }); const data = await res.json(); alert(data.message || 'Ledger scanned and synced successfully.'); } catch (err) { alert('Error: Could not reach the owner server at http://localhost:3001/owner/ledger-scan. Please ensure the backend is running.'); } }}><FileScan size={14} style={{ display: 'inline', marginRight: '6px' }} /> Scan & Sync Traditional Ledger</button>
+                    <button className="btn-primary" style={{ width: '100%', background: 'transparent', border: '1px solid #6366f1', color: '#a5b4fc', fontWeight: 'bold', padding: '10px', borderRadius: '8px', cursor: 'pointer' }} onClick={async () => { try { const res = await api.post('/owner/ledger-scan', { ledgerType: 'Bahi-Khata', language: 'Marwari/Hindi' }); alert(res.data.message || 'Ledger scanned and synced successfully.'); } catch (err) { alert('Error: Could not reach the API. Please ensure the backend is running.'); console.error(err); } }}><FileScan size={14} style={{ display: 'inline', marginRight: '6px' }} /> Scan & Sync Traditional Ledger</button>
                   </div>
                 </div>
 
@@ -2110,7 +2942,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                     <p style={{ fontSize: '0.8rem', opacity: 0.8, margin: 0, lineHeight: 1.4 }}>Peer-verified reputation for payment punctuality & quality consistency in Bhilwara.</p>
                   </div>
                   <div style={{ marginTop: 'auto' }}>
-                    <button className="btn-primary" style={{ width: '100%', background: '#eab308', border: 'none', color: 'black', fontWeight: 'bold', padding: '10px', borderRadius: '8px', cursor: 'pointer' }} onClick={async () => { try { const res = await fetch('http://localhost:3001/owner/trust-score', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ score: 'A+', trustIndex: 94, suppliers: 15 }) }); const data = await res.json(); alert(data.message || 'Trust-Score shared successfully.'); } catch (err) { alert('Error: Could not reach the owner server at http://localhost:3001/owner/trust-score. Please ensure the backend is running.'); } }}>Share Trust-Score with Suppliers</button>
+                    <button className="btn-primary" style={{ width: '100%', background: '#eab308', border: 'none', color: 'black', fontWeight: 'bold', padding: '10px', borderRadius: '8px', cursor: 'pointer' }} onClick={async () => { try { const res = await api.post('/owner/trust-score', { score: 'A+', trustIndex: 94, suppliers: 15 }); alert(res.data.message || 'Trust-Score shared successfully.'); } catch (err) { alert('Error: Could not reach the API. Please ensure the backend is running.'); console.error(err); } }}>Share Trust-Score with Suppliers</button>
                   </div>
                 </div>
               </div>
@@ -2146,12 +2978,12 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                       <YAxis stroke="#94a3b8" />
                       <Tooltip contentStyle={{ background: '#1e293b', border: 'none' }} />
                       <Bar dataKey="actual" fill="var(--primary)" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="target" fill="rgba(255,255,255,0.1)" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="target" fill="rgba(255,255,255,0.1)" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
               </div>
-              {renderAgentGrid(['Finance'], 'Finance & Sector Analytics AI')}
+              <AgentGrid categories={['Finance']} title="Finance & Sector Analytics AI" focusedAgent={focusedAgent} setFocusedAgent={setFocusedAgent} />
             </div>
           )
         }
@@ -2181,7 +3013,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                 <div className="stat-card">
                   <h3 className="section-title">Eligible MSME Schemes</h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {govSchemes.eligibleSchemes && govSchemes.eligibleSchemes.length > 0 ? govSchemes.eligibleSchemes.map((s, i) => (
+                    {Array.isArray(govSchemes?.eligibleSchemes) && govSchemes.eligibleSchemes.length > 0 ? govSchemes.eligibleSchemes.map((s, i) => (
                       <div key={i} style={{ padding: '1rem', background: 'rgba(16, 185, 129, 0.1)', borderLeft: '3px solid var(--accent)', borderRadius: '8px', fontSize: '0.9rem' }}>
                         <strong>{s}</strong>
                       </div>
@@ -2192,20 +3024,45 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                 </div>
 
                 <div className="stat-card">
-                  <h3 className="section-title">Strategic ROI Insights</h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <div style={{ padding: '1rem', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '12px' }}>
-                      <p style={{ fontWeight: '700', marginBottom: '5px' }}>Solar Transition ROI</p>
-                      <p style={{ fontSize: '0.85rem', opacity: 0.8 }}>Current solar at {typeof solar.solarPercentage === 'object' ? JSON.stringify(solar.solarPercentage) : solar.solarPercentage || 0}%. Increasing to 40% will save ₹85,000/month in power costs.</p>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                    <h3 className="section-title" style={{ margin: 0 }}>Strategic ROI Simulator</h3>
+                    <div style={{ background: 'rgba(16, 185, 129, 0.1)', padding: '4px 12px', borderRadius: '20px', border: '1px solid #10b981', color: '#10b981', fontWeight: '900', fontSize: '0.8rem' }}>
+                      PROJECTED ROI: {projectedRoi}%
                     </div>
-                    <div style={{ padding: '1rem', background: 'rgba(14, 165, 233, 0.1)', borderRadius: '12px' }}>
-                      <p style={{ fontWeight: '700', marginBottom: '5px' }}>Labor Skill Impact</p>
-                      <p style={{ fontSize: '0.85rem', opacity: 0.8 }}>Workers are {typeof laborSkill.overallScore === 'object' ? JSON.stringify(laborSkill.overallScore) : laborSkill.overallScore || 0}% proficient. 10 hours of extra training will boost PEI by 4%.</p>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '8px' }}>
+                        <span>SOLAR TRANSITION</span>
+                        <span style={{ color: 'var(--accent)', fontWeight: 'bold' }}>{growthSliders.solar}%</span>
+                      </div>
+                      <input type="range" min="0" max="100" value={growthSliders.solar} onChange={(e) => updateStrategyRoi('solar', parseInt(e.target.value))} style={{ width: '100%', accentColor: 'var(--accent)' }} />
+                    </div>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '8px' }}>
+                        <span>Loom Automation Depth</span>
+                        <span style={{ color: '#0ea5e9', fontWeight: 'bold' }}>{growthSliders.automation}%</span>
+                      </div>
+                      <input type="range" min="0" max="100" value={growthSliders.automation} onChange={(e) => updateStrategyRoi('automation', parseInt(e.target.value))} style={{ width: '100%', accentColor: '#0ea5e9' }} />
+                    </div>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '8px' }}>
+                        <span>Karigar Upskilling Focus</span>
+                        <span style={{ color: '#f59e0b', fontWeight: 'bold' }}>{growthSliders.training}%</span>
+                      </div>
+                      <input type="range" min="0" max="100" value={growthSliders.training} onChange={(e) => updateStrategyRoi('training', parseInt(e.target.value))} style={{ width: '100%', accentColor: '#f59e0b' }} />
+                    </div>
+                    
+                    <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '12px', border: '1px solid rgba(99, 102, 241, 0.2)' }}>
+                      <div style={{ fontSize: '0.7rem', opacity: 0.6, textTransform: 'uppercase', letterSpacing: '1px' }}>Simulation Impact</div>
+                      <p style={{ margin: '8px 0 0 0', fontSize: '0.85rem', lineHeight: '1.5' }}>
+                        Increasing **Automation** to {growthSliders.automation}% while maintaining **Solar** at {growthSliders.solar}% will yield a net margin improvement of ₹{(projectedRoi * 2.5).toFixed(2)} Lakh/Year.
+                      </p>
                     </div>
                   </div>
                 </div>
               </div>
-              {renderAgentGrid(['Core Systems', 'Finance'], 'Strategic Intelligence AI')}
+              <AgentGrid categories={['Core Systems', 'Finance']} title="Strategic Intelligence AI" focusedAgent={focusedAgent} setFocusedAgent={setFocusedAgent} />
             </div>
           )
         }
@@ -2226,8 +3083,8 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
-                {agentsData.map(agent => (
-                  <div key={typeof agent.id === 'object' ? JSON.stringify(agent.id) : agent.id} style={{
+                {Array.isArray(agentsData) && agentsData.map(agent => (
+                  <div key={agent.id} style={{
                     background: 'rgba(255,255,255,0.02)',
                     border: '1px solid rgba(255,255,255,0.05)',
                     borderRadius: '12px',
@@ -2239,22 +3096,105 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                     onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.05)'; }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                      <span style={{ fontSize: '0.65rem', background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{typeof agent.category === 'object' ? JSON.stringify(agent.category) : agent.category}</span>
+                      <span style={{ fontSize: '0.65rem', background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{agent.category}</span>
                       {agent.status === 'Active' ? <span style={{ color: 'var(--accent)', fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '4px' }}><div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent)', animation: 'pulse 1.5s infinite' }}></div> Active</span> : <span style={{ color: 'var(--warning)', fontSize: '0.7rem' }}>Learning Mode</span>}
                     </div>
-                    <div style={{ fontWeight: '700', fontSize: '0.9rem', marginBottom: '8px', lineHeight: 1.3 }}>{typeof agent.id === 'object' ? JSON.stringify(agent.id) : agent.id}. {typeof agent.name === 'object' ? JSON.stringify(agent.name) : agent.name}</div>
+                    <div style={{ fontWeight: '700', fontSize: '0.9rem', marginBottom: '8px', lineHeight: 1.3 }}>{agent.id}. {agent.name}</div>
 
                     {agent.risk !== 'Low' && agent.risk !== 'N/A' && (
-                      <div style={{ fontSize: '0.75rem', color: agent.risk.includes('Critical') ? 'var(--danger)' : 'var(--warning)' }}>
-                        Alert Policy: <strong>{typeof agent.risk === 'object' ? JSON.stringify(agent.risk) : agent.risk}</strong>
+                      <div style={{ fontSize: '0.75rem', color: agent.risk?.includes('Critical') ? 'var(--danger)' : 'var(--warning)' }}>
+                        Alert Policy: <strong>{agent.risk}</strong>
                       </div>
                     )}
                   </div>
                 ))}
               </div>
             </div>
-          )
-        }
+          )}
+
+        {showTwinModal && (
+          <div className="glass-modal animate-fade-in" style={{ textAlign: 'center' }}>
+            <div className="hologram-mesh" style={{ position: 'absolute', inset: 0, borderRadius: '20px' }}></div>
+            <div style={{ position: 'relative', zIndex: 10 }}>
+              <h2 style={{ color: '#a855f7', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginBottom: '1.5rem' }}>
+                <Box size={32} /> HOLOGRAPHIC DIGITAL TWIN ACTIVE
+              </h2>
+              <div style={{ background: 'rgba(0,0,0,0.4)', padding: '2rem', borderRadius: '15px', border: '1px solid rgba(168, 85, 247, 0.3)', marginBottom: '2rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
+                  <div style={{ padding: '10px', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '0.7rem', opacity: 0.6 }}>STRESS LOAD</div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#ef4444' }}>88%</div>
+                  </div>
+                  <div style={{ padding: '10px', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '0.7rem', opacity: 0.6 }}>RESONANCE</div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#f59e0b' }}>High</div>
+                  </div>
+                  <div style={{ padding: '10px', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '0.7rem', opacity: 0.6 }}>MESH STATUS</div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#10b981' }}>SYNKED</div>
+                  </div>
+                </div>
+                <p style={{ marginTop: '1.5rem', fontSize: '0.9rem', color: '#cbd5e1' }}>
+                  Spatial analysis indicates high mechanical stress on **Loom 7 (Cluster B)**. Recommend speed reduction to 80% to prevent motor overheating.
+                </p>
+              </div>
+              <button
+                className="btn-primary"
+                style={{ background: 'linear-gradient(90deg, #a855f7, #6366f1)', padding: '12px 40px' }}
+                onClick={() => setShowTwinModal(false)}
+              >
+                CLOSE HOLOGRAM
+              </button>
+            </div>
+          </div>
+        )}
+
+        {showUdyamModal && (
+          <div className="glass-modal animate-fade-in" style={{ width: '500px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h3 style={{ margin: 0, color: '#0ea5e9', display: 'flex', alignItems: 'center', gap: '8px' }}><Landmark size={20} /> LINK TO UDYAM GATEWAY</h3>
+              <button onClick={() => setShowUdyamModal(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>✕</button>
+            </div>
+
+            {!udyamFile ? (
+              <div 
+                style={{ border: '2px dashed rgba(14, 165, 233, 0.3)', borderRadius: '12px', padding: '3rem 1rem', textAlign: 'center', background: 'rgba(14, 165, 233, 0.05)', cursor: 'pointer' }}
+                onClick={() => setUdyamFile("udyam_certificate_final.pdf")}
+              >
+                <div style={{ padding: '15px', background: 'rgba(14, 165, 233, 0.1)', borderRadius: '50%', width: 'fit-content', margin: '0 auto 1rem auo' }}><FileScan size={32} color="#0ea5e9" /></div>
+                <div style={{ fontWeight: 'bold', color: 'white', marginBottom: '8px' }}>Drop Udyam Certificate Here</div>
+                <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>Supported: PDF, JPG (Max 5MB)</div>
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ padding: '15px', background: 'rgba(16, 185, 129, 0.1)', borderRadius: '12px', marginBottom: '1.5rem', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                  <div style={{ fontSize: '0.8rem', color: '#10b981', fontWeight: 'bold' }}>FILE ATTACHED: {udyamFile}</div>
+                </div>
+                
+                {isOcrScanning ? (
+                  <div style={{ marginBottom: '1.5rem' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#0ea5e9', fontWeight: 'bold', marginBottom: '8px', letterSpacing: '1px' }}>AI NEURAL OCR SCANNING...</div>
+                    <div style={{ width: '100%', height: '4px', background: 'rgba(14, 165, 233, 0.1)', borderRadius: '2px', overflow: 'hidden', position: 'relative' }}>
+                      <div className="scan-line" style={{ position: 'absolute', top: 0, left: '-100%', width: '100%', height: '100%', background: 'linear-gradient(90deg, transparent, #0ea5e9, transparent)', animation: 'progress-infinite 1s linear infinite' }}></div>
+                    </div>
+                  </div>
+                ) : ocrData ? (
+                  <div className="animate-fade-in" style={{ textAlign: 'left', background: 'rgba(0,0,0,0.3)', padding: '1.5rem', borderRadius: '12px', border: '1px solid rgba(16, 185, 129, 0.3)', marginBottom: '1.5rem' }}>
+                    <div style={{ fontSize: '0.65rem', color: '#10b981', fontWeight: 'bold', marginBottom: '10px' }}>VERIFIED DATA EXTRACTED:</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(100px, auto) 1fr', gap: '8px', fontSize: '0.85rem' }}>
+                      <span style={{ opacity: 0.6 }}>Entity:</span> <span style={{ fontWeight: 'bold' }}>{ocrData.company}</span>
+                      <span style={{ opacity: 0.6 }}>Udyam ID:</span> <span style={{ fontWeight: 'bold', color: '#0ea5e9' }}>{ocrData.udyamId}</span>
+                      <span style={{ opacity: 0.6 }}>Type:</span> <span style={{ fontWeight: 'bold' }}>{ocrData.category}</span>
+                    </div>
+                    <div style={{ marginTop: '1rem', textAlign: 'center', color: '#10b981', fontWeight: 'bold', fontSize: '0.8rem' }}>SYNC SUCCESSFUL</div>
+                  </div>
+                ) : (
+                  <button onClick={executeOcrScan} className="btn-primary" style={{ width: '100%', background: '#0ea5e9', color: 'white', padding: '12px', borderRadius: '8px', fontWeight: 'bold' }}>START OCR EXTRACTION</button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {
           activeTab === 'gov' && (
@@ -2274,11 +3214,33 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
               <div className="charts-grid">
                 <div className="stat-card">
                   <h3 className="section-title">Active Applications</h3>
-                  <div style={{ opacity: 0.6, textAlign: 'center', padding: '2rem' }}>
-                    <Database size={48} style={{ marginBottom: '10px' }} />
-                    <p style={{ margin: '1rem 0' }}>Connect your Udyam Aadhar to track live applications.</p>
-                    <button className="btn-cyan-gradient" style={{ padding: '10px 30px', border: 'none', borderRadius: '8px', color: 'white', fontWeight: '700', cursor: 'pointer', background: '#0ea5e9' }}>LINK TO UDYAM</button>
-                  </div>
+                  {!udyamLinked ? (
+                    <div style={{ opacity: 0.6, textAlign: 'center', padding: '2rem' }}>
+                      <div className="pulse-slow" style={{ width: '60px', height: '60px', margin: '0 auto 1.5rem', background: 'rgba(14, 165, 233, 0.05)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(14, 165, 233, 0.2)' }}>
+                        <Database size={32} color="#0ea5e9" />
+                      </div>
+                      <p style={{ margin: '1rem 0', fontSize: '0.9rem' }}>Gateway Locked: Link your Udyam Aadhar to enable live subsidy tracking.</p>
+                      <button 
+                        className="btn-cyan-gradient" 
+                        style={{ padding: '12px 30px', border: 'none', borderRadius: '8px', color: 'white', fontWeight: '700', cursor: 'pointer', background: 'linear-gradient(90deg, #0ea5e9, #0284c7)', boxShadow: '0 4px 15px rgba(14, 165, 233, 0.3)' }}
+                        onClick={handleUdyamLink}
+                      >
+                        INITIATE UDYAM SYNC
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {govApplications.map(app => (
+                        <div key={app.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', borderLeft: '3px solid var(--accent)' }}>
+                          <div>
+                            <div style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>{app.name}</div>
+                            <div style={{ fontSize: '0.7rem', opacity: 0.6 }}>ID: {app.id} | Applied on: {app.date}</div>
+                          </div>
+                          <span style={{ fontSize: '0.65rem', background: app.status === 'Approved' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)', color: app.status === 'Approved' ? '#10b981' : '#f59e0b', padding: '2px 8px', borderRadius: '4px', fontWeight: 'bold' }}>{app.status}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="stat-card">
                   <h3 className="section-title">Cluster Notifications</h3>
@@ -2296,7 +3258,7 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                 <div className="stats-grid" style={{ marginTop: '2rem' }}>
                   <div style={{ padding: '1.5rem', background: 'rgba(255,255,255,0.03)', borderRadius: '12px' }}>
                     <div style={{ fontWeight: '800', color: '#0ea5e9' }}>PMEGP Eligibility</div>
-                    <div style={{ fontSize: '1.2rem', margin: '0.5rem 0' }}>{govSchemes.pmegpEligible ? 'Qualified ✅' : 'Review Needed ⏳'}</div>
+                    <div style={{ fontSize: '1.2rem', margin: '0.5rem 0' }}>{govSchemes.pmegpEligible ? 'Qualified ' : 'Qualified'}</div>
                     <div style={{ fontSize: '0.75rem', opacity: 0.5 }}>Subsidy: Up to 35% of project cost.</div>
                   </div>
                   <div style={{ padding: '1.5rem', background: 'rgba(255,255,255,0.03)', borderRadius: '12px' }}>
@@ -2312,10 +3274,80 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                 </div>
               </div>
 
-              <div className="stat-card" style={{ marginTop: '1.5rem', background: 'rgba(16, 185, 129, 0.05)' }}>
-                <h4 style={{ marginBottom: '1rem' }}>Live Government Insights for Bhilwara</h4>
-                <p style={{ fontSize: '0.9rem', opacity: 0.8 }}>AI recommends applying for **M-SME Excellence Awards** based on your current PEI of {typeof pei === 'object' ? JSON.stringify(pei) : pei}% and ZLD compliance status.</p>
-                <button className="btn-primary" style={{ marginTop: '1.5rem', background: '#0ea5e9', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Download Compliance Report</button>
+              <div className="stat-card" style={{ marginTop: '1.5rem', background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(6, 78, 59, 0.05) 100%)', border: '1px solid rgba(16, 185, 129, 0.2)', position: 'relative', overflow: 'hidden' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
+                  <div>
+                    <h3 className="section-title" style={{ color: '#10b981', display: 'flex', alignItems: 'center', gap: '10px', margin: 0 }}>
+                      <BrainCircuit size={22} /> AI Scheme Intelligence Center
+                    </h3>
+                    <p style={{ fontSize: '0.8rem', opacity: 0.6, marginTop: '5px' }}>Cross-referencing Factory Telemetry with Rajasthan RIPS 2022 Policies</p>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '0.65rem', fontWeight: 'bold', color: '#10b981', letterSpacing: '1px' }}>SYSTEM UPTIME: 99.9%</div>
+                    <div style={{ fontSize: '0.6rem', opacity: 0.5 }}>Last Policy Sync: 12-MAR-2026</div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                  {/* Left: Interactive Eligibility Scanner */}
+                  <div style={{ background: 'rgba(0,0,0,0.3)', padding: '1.5rem', borderRadius: '15px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 'bold', letterSpacing: '1px' }}>GRANT PROBABILITY SCORE</span>
+                      <span style={{ fontSize: '1.2rem', fontWeight: '900', color: '#10b981' }}>{grantProbability}%</span>
+                    </div>
+                    
+                    <div style={{ height: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', overflow: 'hidden', marginBottom: '1.5rem' }}>
+                      <div style={{ width: `${grantProbability}%`, height: '100%', background: 'linear-gradient(90deg, #10b981, #34d399)', transition: 'width 1s cubic-bezier(0.4, 0, 0.2, 1)' }}></div>
+                    </div>
+
+                    {isScanningSchemes ? (
+                      <div className="animate-fade-in" style={{ fontSize: '0.8rem' }}>
+                        {scanSteps.map((step, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', color: '#10b981', opacity: i === scanSteps.length - 1 ? 1 : 0.5 }}>
+                            <div className="spin" style={{ width: '12px', height: '12px', border: '2px solid transparent', borderTopColor: '#10b981', borderRadius: '50%' }}></div>
+                            {step}...
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ textAlign: 'center' }}>
+                         <p style={{ fontSize: '0.85rem', opacity: 0.8, marginBottom: '1.5rem', lineHeight: '1.5' }}>
+                          Based on your **PEI ({renderSafeValue(executiveSummary.pei)}%)**, **ZLD Compliance**, and **Solar Offset**, you are in the top 5% of eligible factories for the **Textile Excellence Subsidy**.
+                        </p>
+                        <button 
+                          className="btn-primary" 
+                          style={{ width: '100%', background: '#10b981', color: 'black', border: 'none', padding: '12px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}
+                          onClick={handleSchemeScan}
+                        >
+                          RERUN ELIGIBILITY DEEP-SCAN
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Right: Live Rajasthan Scheme Feed */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#94a3b8', letterSpacing: '1px' }}>LIVE BHILWARA FEED</div>
+                    {[
+                      { title: "RIPS 2022 Electricity Exemption", benefit: "100% Duty Waiver", risk: "Low", icon: <Zap size={16} /> },
+                      { title: "ZED Certification Subsidy", benefit: "90% Cost Refund", risk: "Immediate", icon: <Award size={16} /> },
+                      { title: "Textile Skill Development Fund", benefit: "₹15,000 / Karigar", risk: "High", icon: <Users size={16} /> }
+                    ].map((scheme, idx) => (
+                      <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px', background: 'rgba(255,255,255,0.02)', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer', transition: 'transform 0.2s' }} onClick={() => setSelectedScheme(scheme)}>
+                        <div style={{ padding: '8px', background: 'rgba(16, 185, 129, 0.1)', borderRadius: '8px', color: '#10b981' }}>{scheme.icon}</div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>{scheme.title}</div>
+                          <div style={{ fontSize: '0.7rem', opacity: 0.6 }}>Benefit: {scheme.benefit}</div>
+                        </div>
+                        <span style={{ fontSize: '0.6rem', padding: '2px 6px', borderRadius: '4px', background: scheme.risk === 'Immediate' ? 'rgba(244, 63, 94, 0.1)' : 'rgba(16, 185, 129, 0.1)', color: scheme.risk === 'Immediate' ? '#f43f5e' : '#10b981' }}>{scheme.risk}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'center' }}>
+                  <button className="btn-primary" style={{ background: 'transparent', color: '#10b981', border: '1px solid #10b981', padding: '8px 20px', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 'bold' }} onClick={handleDownloadReport}>Download AI Compliance Report (PDF)</button>
+                </div>
               </div>
 
               {/* HACKATHON WINNER: GenAI Auto-Filler */}
@@ -2324,21 +3356,46 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
                   <h3 className="section-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px', color: '#ec4899' }}>
                     <Wand2 size={22} /> GenAI Subsidy Auto-Filler
                   </h3>
+                  {subsidyDraftStatus === 'drafting' && (
+                    <div style={{ fontSize: '0.75rem', color: '#ec4899', fontWeight: 'bold' }}>DRAFTING {draftProgress}%</div>
+                  )}
+                  {subsidyDraftStatus === 'completed' && (
+                    <div style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 'bold' }}>COMPLETED!</div>
+                  )}
                 </div>
-                <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-                  Tired of complex government forms? Our Generative AI reads your factory's live data (production, power, employment) and instantly drafts the Rajasthan RIPS 2022 subsidy application.
-                </p>
+                
+                {subsidyDraftStatus === 'drafting' ? (
+                  <div style={{ width: '100%', height: '4px', background: 'rgba(236, 72, 153, 0.1)', borderRadius: '2px', overflow: 'hidden', marginBottom: '1.5rem' }}>
+                    <div style={{ width: `${draftProgress}%`, height: '100%', background: '#ec4899', transition: 'width 0.3s' }}></div>
+                  </div>
+                ) : (
+                  <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+                    Tired of complex government forms? Our Generative AI reads your factory's live data (production, power, employment) and instantly drafts the Rajasthan RIPS 2022 subsidy application.
+                  </p>
+                )}
+
                 <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem' }}>
-                  <button
-                    className="btn-primary"
-                    style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#ec4899', color: 'white', fontWeight: 'bold', padding: '0.75rem 1.5rem', borderRadius: '8px', border: 'none', cursor: 'pointer' }}
-                    onClick={() => alert('GenAI is drafting your RIPS 2022 application... Factory data extracted successfully! PDF generated.')}
-                  >
-                    <Bot size={18} /> GENERATE RIPS APPLICATION
-                  </button>
+                   {subsidyDraftStatus !== 'completed' ? (
+                    <button
+                      className="btn-primary"
+                      style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#ec4899', color: 'white', fontWeight: 'bold', padding: '0.75rem 1.5rem', borderRadius: '8px', border: 'none', cursor: subsidyDraftStatus === 'drafting' ? 'not-allowed' : 'pointer', opacity: subsidyDraftStatus === 'drafting' ? 0.7 : 1 }}
+                      disabled={subsidyDraftStatus === 'drafting'}
+                      onClick={handleGenAiSubsidy}
+                    >
+                      <Bot size={18} /> {subsidyDraftStatus === 'drafting' ? 'PROCESSING DATA...' : 'GENERATE RIPS APPLICATION'}
+                    </button>
+                   ) : (
+                    <button
+                      className="btn-primary"
+                      style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#10b981', color: 'white', fontWeight: 'bold', padding: '0.75rem 1.5rem', borderRadius: '8px', border: 'none', cursor: 'pointer' }}
+                      onClick={() => alert('Opening Rajasthan Gov Portal for submission... (Simulated)')}
+                    >
+                      <CheckCircle2 size={18} /> SUBMIT TO RAJASTHAN GOV PORTAL
+                    </button>
+                   )}
                 </div>
               </div>
-              {renderAgentGrid(['Finance'], 'MSME Compliance & Growth AI')}
+              <AgentGrid categories={['Finance']} title="Finance & Sector Analytics AI" focusedAgent={focusedAgent} setFocusedAgent={setFocusedAgent} />
             </div>
           )
         }
@@ -2347,4 +3404,5 @@ import { agentsData } from "../data/agentsData"; export default function Dashboa
     </div >
   );
 }
+
 
