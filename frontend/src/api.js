@@ -1,7 +1,8 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "http://localhost:3001/api"
+  baseURL: "/api",
+  timeout: 8000
 });
 
 // INTERCEPTOR: Prevent UI crash if backend or MongoDB goes down during demo

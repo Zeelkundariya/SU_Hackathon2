@@ -8,7 +8,8 @@ const ProductionLog = require("../models/ProductionLog");
 const Order = require("../models/Order");
 const Factory = require("../models/Factory");
 const MarketData = require("../models/MarketData");
-const AIRequest = require("../models/AIRequest");
+const AIRequest = require("../models/AIRequest"); // kept for other potential uses
+const RequestStore = require("../store/requestStore");
 
 // AI Logic
 const { predictDelay } = require("../ai/delayPrediction");
@@ -756,8 +757,7 @@ router.post("/optimize-workflow", async (req, res) => {
 router.post("/request", async (req, res) => {
   try {
     const { agentName, requestType, details } = req.body;
-    const newRequest = new AIRequest({ agentName, requestType, details });
-    await newRequest.save();
+    const newRequest = RequestStore.create({ agentName, requestType, details });
     res.json(newRequest);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -766,7 +766,7 @@ router.post("/request", async (req, res) => {
 
 router.get("/requests", async (req, res) => {
   try {
-    const requests = await AIRequest.find().sort({ timestamp: -1 });
+    const requests = RequestStore.findAll();
     res.json(requests);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -776,7 +776,8 @@ router.get("/requests", async (req, res) => {
 router.put("/request/:id", async (req, res) => {
   try {
     const { status } = req.body;
-    const request = await AIRequest.findByIdAndUpdate(req.params.id, { status }, { new: true });
+    const request = RequestStore.updateStatus(req.params.id, status);
+    if (!request) return res.status(404).json({ error: "Request not found" });
     res.json(request);
   } catch (err) {
     res.status(500).json({ error: err.message });

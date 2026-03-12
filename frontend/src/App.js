@@ -3,13 +3,18 @@ import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
 import DataEntry from "./pages/DataEntry";
 import OwnerPortal from "./pages/OwnerPortal";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 function App() {
   return (
     <Router>
       <Routes>
         <Route path="/" element={<Landing />} />
-        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/dashboard" element={
+          <ErrorBoundary>
+            <Dashboard />
+          </ErrorBoundary>
+        } />
         <Route path="/entry" element={<DataEntry />} />
         <Route path="/owner" element={<OwnerPortal />} />
       </Routes>

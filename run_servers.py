@@ -25,23 +25,17 @@ def run_server(name, directory, command, env_vars):
     return process
 
 # Env vars for backend
-backend_env = {"PORT": "3001"}
-# Env vars for frontend
-frontend_env = {"BROWSER": "none", "PORT": "3000"}
+backend_env = {"PORT": "3000"}
 
 # Start backend
-backend_proc = run_server("Backend", backend_dir, "node server.js", backend_env)
+backend_proc = run_server("Sovereign AI Engine", backend_dir, "node server.js", backend_env)
 
-# Start frontend
-frontend_proc = run_server("Frontend", frontend_dir, "npm start", frontend_env)
-
-print("Servers started. Logging output for 30 seconds...")
+print("Main Server started on Port 3000. Logging output for 30 seconds...")
 start_time = time.time()
 while time.time() - start_time < 30:
-    for proc, name in [(backend_proc, "Backend"), (frontend_proc, "Frontend")]:
-        line = proc.stdout.readline()
-        if line:
-            print(f"[{name}] {line.strip()}")
+    line = backend_proc.stdout.readline()
+    if line:
+        print(f"[Engine] {line.strip()}")
     time.sleep(0.1)
 
-print("Launcher script finished tracking. Servers should be running in the background.")
+print("Launcher script finished tracking. Server is running on http://localhost:3000")

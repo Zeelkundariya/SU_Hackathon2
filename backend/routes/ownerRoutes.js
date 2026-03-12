@@ -1,6 +1,47 @@
 const express = require("express");
 const router = express.Router();
-const AIRequest = require("../models/AIRequest");
+const AIRequest = require("../models/AIRequest"); // kept for feature routes
+const RequestStore = require("../store/requestStore");
+
+// ── Core Request Management ──────────────────────────────────────────────────
+
+// Get all AI requests (polled by Dashboard & Owner Portal)
+router.get("/requests", (req, res) => {
+    try {
+        const requests = RequestStore.findAll();
+        res.json(requests);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Create a new owner-approval request (called by AI agents on Dashboard)
+router.post("/request", (req, res) => {
+    try {
+        const { agentName, requestType, details } = req.body;
+        const newRequest = RequestStore.create({ agentName, requestType, details });
+        console.log(`[Owner Server] New request: ${requestType} by ${agentName}`);
+        res.json(newRequest);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Update request status (Approve / Reject from Owner Portal)
+router.put("/request/:id", (req, res) => {
+    try {
+        const { status } = req.body;
+        const request = RequestStore.updateStatus(req.params.id, status);
+        if (!request) return res.status(404).json({ error: "Request not found" });
+        console.log(`[Owner Server] Request updated → ${status}`);
+        res.json(request);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ── Owner Feature Routes ─────────────────────────────────────────────────────
+
 
 // Feature 1: Global Price Arbitrage
 router.post("/arbitrage", async (req, res) => {

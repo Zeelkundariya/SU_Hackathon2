@@ -1,0 +1,76 @@
+﻿
+> smartfactory-frontend@1.0.0 build
+> react-scripts build
+
+node.exe : 
+'Automation' is not 
+recognized as an 
+internal or external 
+command,
+At line:1 char:1
++ & "C:\Program 
+Files\nodejs/node.exe" 
+"C:\Program 
+Files\nodejs/node_mo 
+...
++ ~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: ('Automation'    
+ is...ternal comman    
+d,:String) [], Rem    
+oteException
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+operable program or 
+batch file.
+node:internal/modules/c
+js/loader:1424
+  throw err;
+  ^
+
+Error: Cannot find 
+module 'C:\Users\zeelk\
+OneDrive\Desktop\react-
+scripts\bin\react-scrip
+ts.js'
+    at Module._resolveF
+ilename (node:internal/
+modules/cjs/loader:1421
+:15)
+    at 
+defaultResolveImpl (nod
+e:internal/modules/cjs/
+loader:1059:19)
+    at 
+resolveForCJSWithHooks 
+(node:internal/modules/
+cjs/loader:1064:22)
+    at Module._load (no
+de:internal/modules/cjs
+/loader:1227:37)
+    at TracingChannel.t
+raceSync (node:diagnost
+ics_channel:328:14)
+    at wrapModuleLoad (
+node:internal/modules/c
+js/loader:245:24)
+    at Module.executeUs
+erEntryPoint [as 
+runMain] (node:internal
+/modules/run_main:154:5
+)
+    at node:internal/ma
+in/run_main_module:33:4
+7 {
+  code: 
+'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v24.11.1
