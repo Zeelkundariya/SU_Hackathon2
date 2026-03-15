@@ -23,7 +23,7 @@ const Landing = () => {
             try {
                 // We'll use a fetch directly here to avoid potential circular/missing api import issues if it's not exported
                 // but usually api.js is standard. Let's try fetching from the origin
-                const res = await fetch('http://localhost:3001/api/iot/live');
+                const res = await fetch('/api/iot/live');
                 const data = await res.json();
                 setLivePulse({
                     oee: data.kpis.oeeScore,

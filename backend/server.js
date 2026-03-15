@@ -10,8 +10,10 @@ connectDB();
 app.use(cors());
 app.use(express.json());
 
-// app.use(express.static(path.join(__dirname, "../frontend/build")));
-app.get("/", (req, res) => res.json({ status: "SmartFactory API Running", time: new Date() }));
+app.use(express.static(path.join(__dirname, "../frontend/build")));
+
+// Root API check (Modified for deployment)
+app.get("/api/status", (req, res) => res.json({ status: "SmartFactory API Operational", time: new Date() }));
 
 app.get("/test", (req, res) => res.json({ message: "Server is alive" }));
 
@@ -28,9 +30,9 @@ app.use("/api/fyp", require("./routes/fypRoutes"));
 app.use("/api/iot", require("./routes/iotSimulator"));
 app.use("/api/govassist", require("./routes/govAssistRoutes"));
 
-// app.get("*", (req, res) => {
-//     res.sendFile(path.join(__dirname, "../frontend/build", "index.html"));
-// });
+app.get("*", (req, res) => {
+    res.sendFile(path.join(__dirname, "../frontend/build", "index.html"));
+});
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Owner Server running on port ${PORT}`));
